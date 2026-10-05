@@ -10,7 +10,7 @@ const CONFIG = {
     HEIGHT: 5.0, // meters (Y axis: 0 to 5.0m)
     WALL_THICKNESS: 0.1, // meters
     WALL_HEIGHT: 0.4, // meters in 3D
-    DEFAULT_SPAWN: { x: 0.8, y: 0.8, theta: 0 }, // Initial robot position
+    DEFAULT_SPAWN: { x: 2.5, y: 0.6, theta: Math.PI / 2 }, // Initial robot position (centered facing +Y)
     DEFAULT_GOAL: { x: 4.2, y: 4.2 }, // Default target objective
   },
 

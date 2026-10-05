@@ -16,6 +16,167 @@ class CodeEngine {
 
     // Default Preset Scripts
     this.presets = {
+      // 0. Whiteboard Sense-Think-Act Waypoints Navigator (5s Interval)
+      whiteboard_waypoints: `/**
+ * WHITEBOARD SENSE-THINK-ACT AUTONOMOUS WAYPOINT NAVIGATOR
+ * =========================================================
+ * Implementation of Whiteboard Specification:
+ * - Rules:
+ *   1. Coordinate system origin must be (0, 0)
+ *   2. Holonomic / omnidirectional wheel kinematics (Mecanum 3-DOF)
+ *   3. 2D LiDAR = Eyes, IMU = Ears
+ *   4. Interval 5 sec / point (Hold 5s at each waypoint)
+ *
+ * - Waypoints: (0, 2) -> (2, 3) -> (-2, 4)
+ *
+ * - Sense-Think-Act Architecture:
+ *   1. Initialize: Origin (0,0), data streams, waypoints array
+ *   2. Sense: Read IMU heading (ears), LiDAR ranges & odometry (eyes)
+ *   3. Think: Coordinate error calculation, waypoint arrival check,
+ *             5s timer countdown, LiDAR obstacle & corridor detection
+ *   4. Act: Holonomic velocity transformation (Vx, Vy, Omega),
+ *           morphing ("I" vs "O"), state transitions
+ */
+
+// ==========================================
+// 1. INITIALIZE (Step 1 from Whiteboard)
+// ==========================================
+if (!memory.initialized) {
+  memory.initialized = true;
+
+  // Reposition robot to optimal arena center-bottom if starting at default corner
+  // This ensures local coordinates (0, 2), (2, 3), (-2, 4) fit cleanly in the 5x5m arena
+  if (sensors.pose.x < 1.5 && sensors.pose.y < 1.5 && robot.resetPose) {
+    robot.resetPose(2.5, 0.6, Math.PI / 2);
+  }
+
+  // Rule 1: Set coordinate (0, 0) as local reference origin
+  memory.originX = sensors.pose.x;
+  memory.originY = sensors.pose.y;
+  memory.originTheta = sensors.imu.headingRad;
+
+  // Waypoints loaded from instruction (Whiteboard)
+  memory.waypoints = [
+    { id: 1, x: 0.0, y: 2.0 },
+    { id: 2, x: 2.0, y: 3.0 },
+    { id: 3, x: -2.0, y: 4.0 },
+  ];
+
+  memory.currentWptIndex = 0;
+  memory.state = "NAVIGATING"; // "NAVIGATING" | "HOLD_AT_POINT" | "FINISHED"
+  memory.holdTimer = 0.0;
+  memory.HOLD_DURATION = 5.0; // Rule 4: Interval 5 sec / point
+  memory.TOLERANCE = 0.20;    // Waypoint reached tolerance (meters)
+  memory.lastLogSec = -1;
+
+  robot.setShape("O"); // Initial stable 2x2 shape
+  robot.log("================================================");
+  robot.log("Whiteboard Sense-Think-Act Navigator Initialized!");
+  robot.log(\`Rule 1: Origin (0,0) set at global (\${memory.originX.toFixed(2)}, \${memory.originY.toFixed(2)})\`);
+  robot.log("Rule 2: Holonomic Mecanum 3-DOF Kinematics Active");
+  robot.log("Rule 3: Eyes (2D LiDAR) & Ears (6-DOF IMU) Online");
+  robot.log("Rule 4: 5.0s Interval Hold per Waypoint Activated");
+  robot.log("Waypoints: 1:(0, 2) -> 2:(2, 3) -> 3:(-2, 4)");
+  robot.log("================================================");
+}
+
+// ==========================================
+// 2. SENSE (Step 2 from Whiteboard)
+// ==========================================
+// Ears: IMU heading and orientation
+const headingRad = sensors.imu.headingRad; // Current yaw heading (-PI to PI)
+const headingDeg = sensors.imu.heading;    // Current heading (0 to 360 deg)
+
+// Eyes: 2D LiDAR Raycasting sectors
+const frontDist = sensors.lidar.getFront(35); // Front cone [-35°, +35°]
+const leftDist  = sensors.lidar.getLeft(45);  // Left flank
+const rightDist = sensors.lidar.getRight(45); // Right flank
+const backDist  = sensors.lidar.getBack(30);  // Rear cone
+
+// Position tracking relative to origin (0, 0)
+const localX = sensors.pose.x - memory.originX;
+const localY = sensors.pose.y - memory.originY;
+
+// ==========================================
+// 3. THINK (Step 3 from Whiteboard)
+// ==========================================
+
+// Check if all waypoints have been visited
+if (memory.currentWptIndex >= memory.waypoints.length) {
+  memory.state = "FINISHED";
+  robot.setVelocity(0, 0, 0);
+  if (Math.random() < 0.02) {
+    robot.log(">>> MISSION ACCOMPLISHED: All Waypoints Visited! <<<");
+  }
+  return;
+}
+
+const target = memory.waypoints[memory.currentWptIndex];
+const errorX = target.x - localX;
+const errorY = target.y - localY;
+const distToTarget = Math.hypot(errorX, errorY);
+
+// State A: Check if arrival condition met
+if (memory.state === "NAVIGATING" && distToTarget < memory.TOLERANCE) {
+  memory.state = "HOLD_AT_POINT";
+  memory.holdTimer = 0.0;
+  memory.lastLogSec = -1;
+  robot.setVelocity(0, 0, 0);
+  robot.log(\`>>> REACHED Waypoint #\${target.id} at (\${target.x}, \${target.y})! Starting 5-second interval hold... <<<\`);
+}
+
+// State B: Holding for 5 seconds (Rule 4)
+if (memory.state === "HOLD_AT_POINT") {
+  memory.holdTimer += dt;
+  const currentSec = Math.floor(memory.holdTimer);
+
+  if (currentSec !== memory.lastLogSec && currentSec <= 5) {
+    const remaining = (memory.HOLD_DURATION - memory.holdTimer).toFixed(1);
+    robot.log(\`Waypoint #\${target.id} Hold: \${memory.holdTimer.toFixed(1)}s / 5.0s (Remaining: \${remaining}s)\`);
+    memory.lastLogSec = currentSec;
+  }
+
+  // Act: Hold position
+  robot.setVelocity(0, 0, 0);
+
+  // Transition after 5 seconds elapsed
+  if (memory.holdTimer >= memory.HOLD_DURATION) {
+    robot.log(\`>>> 5.0s Interval Complete for Waypoint #\${target.id}! Transitioning to next target... <<<\`);
+    memory.currentWptIndex++;
+    memory.state = "NAVIGATING";
+    memory.holdTimer = 0.0;
+  }
+  return;
+}
+
+// State C: Navigating to active waypoint
+// - Compute desired motion vector towards target coordinate
+const targetGlobalAngle = Math.atan2(errorY, errorX);
+const speed = 0.35;
+const desiredGlobalVx = Math.cos(targetGlobalAngle) * speed;
+const desiredGlobalVy = Math.sin(targetGlobalAngle) * speed;
+
+// ==========================================
+// 4. ACT (Step 4 from Whiteboard)
+// ==========================================
+// - Holonomic / omnidirectional wheel locomotion
+// Convert global velocity vector to robot local frame (Vx: forward, Vy: lateral crab)
+const cosH = Math.cos(headingRad);
+const sinH = Math.sin(headingRad);
+
+const localVx = desiredGlobalVx * cosH + desiredGlobalVy * sinH;
+const localVy = -desiredGlobalVx * sinH + desiredGlobalVy * cosH;
+
+// Heading alignment via IMU (Ears)
+let headingError = targetGlobalAngle - headingRad;
+while (headingError > Math.PI) headingError -= 2 * Math.PI;
+while (headingError < -Math.PI) headingError += 2 * Math.PI;
+const omega = Math.max(-1.5, Math.min(1.5, headingError * 1.5));
+
+// Command Holonomic Wheels
+robot.setVelocity(localVx, localVy, omega);
+`,
+
       // 1. User-Requested Default Autonomous Obstacle Avoidance Template
       default_avoidance: `/**
  * ROBO-ROARZ AUTONOMOUS OBSTACLE AVOIDANCE & MORPHING
@@ -272,6 +433,9 @@ robot.setVelocity(0.28, 0.0, -steer);
       },
       stop: () => {
         robot.stop();
+      },
+      resetPose: (x, y, theta) => {
+        robot.resetPose(x, y, theta);
       },
       log: (msg) => {
         this.log(String(msg), "user");

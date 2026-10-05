@@ -78,7 +78,7 @@ class SmorphiApp {
       });
 
       // Set default script from codeEngine
-      this.editor.setValue(this.codeEngine.presets.default_avoidance, -1);
+      this.editor.setValue(this.codeEngine.presets.whiteboard_waypoints || this.codeEngine.presets.default_avoidance, -1);
     } else {
       console.warn("[SmorphiApp] Ace Editor not loaded, falling back to textarea");
     }
@@ -169,9 +169,11 @@ class SmorphiApp {
     if (btnResetCode) {
       btnResetCode.addEventListener("click", () => {
         if (this.editor) {
-          this.editor.setValue(this.codeEngine.presets.default_avoidance, -1);
+          const currentPreset = presetSelect ? presetSelect.value : "whiteboard_waypoints";
+          const code = this.codeEngine.presets[currentPreset] || this.codeEngine.presets.whiteboard_waypoints;
+          this.editor.setValue(code, -1);
           this.codeEngine.compileScript(this.editor.getValue());
-          this.codeEngine.log("Editor reset to default Obstacle Avoidance template.");
+          this.codeEngine.log(`Editor reset to ${currentPreset} template.`);
         }
       });
     }
