@@ -66,7 +66,7 @@ if (!memory.initialized) {
   memory.state = "NAVIGATING"; // "NAVIGATING" | "HOLD_AT_POINT" | "FINISHED"
   memory.holdTimer = 0.0;
   memory.HOLD_DURATION = 5.0; // Rule 4: Interval 5 sec / point
-  memory.TOLERANCE = 0.20;    // Waypoint reached tolerance (meters)
+  memory.TOLERANCE = 0.28;    // Waypoint reached tolerance (meters)
   memory.lastLogSec = -1;
 
   robot.setShape("O"); // Initial stable 2x2 shape
@@ -149,23 +149,41 @@ if (memory.state === "HOLD_AT_POINT") {
   return;
 }
 
-// State C: Navigating to active waypoint
-// - Compute desired motion vector towards target coordinate
+// State C: Navigating to active waypoint with Holonomic DWA & LiDAR Obstacle Avoidance
+// Narrow corridor detection & shape morphing
+if (leftDist < 0.36 && rightDist < 0.36) {
+  if (sensors.shape !== "I") robot.setShape("I");
+} else if (sensors.shape === "I" && leftDist > 0.60 && rightDist > 0.60) {
+  robot.setShape("O");
+}
+
 const targetGlobalAngle = Math.atan2(errorY, errorX);
-const speed = 0.35;
-const desiredGlobalVx = Math.cos(targetGlobalAngle) * speed;
-const desiredGlobalVy = Math.sin(targetGlobalAngle) * speed;
+let targetAngleRel = targetGlobalAngle - headingRad;
+while (targetAngleRel > Math.PI) targetAngleRel -= 2 * Math.PI;
+while (targetAngleRel < -Math.PI) targetAngleRel += 2 * Math.PI;
 
-// ==========================================
-// 4. ACT (Step 4 from Whiteboard)
-// ==========================================
-// - Holonomic / omnidirectional wheel locomotion
-// Convert global velocity vector to robot local frame (Vx: forward, Vy: lateral crab)
-const cosH = Math.cos(headingRad);
-const sinH = Math.sin(headingRad);
+let vx = Math.cos(targetAngleRel) * 0.32;
+let vy = Math.sin(targetAngleRel) * 0.32;
 
-const localVx = desiredGlobalVx * cosH + desiredGlobalVy * sinH;
-const localVy = -desiredGlobalVx * sinH + desiredGlobalVy * cosH;
+// 2D LiDAR Obstacle Repulsion (Eyes) & Holonomic Crabbing
+if (frontDist < 0.70) {
+  const urgency = (0.70 - frontDist) / 0.70;
+  vx -= urgency * 0.45;
+  const dodgeDir = leftDist > rightDist ? 1 : -1;
+  vy += dodgeDir * urgency * 0.50;
+}
+if (leftDist < 0.45) {
+  vy -= ((0.45 - leftDist) / 0.45) * 0.35;
+}
+if (rightDist < 0.45) {
+  vy += ((0.45 - rightDist) / 0.45) * 0.35;
+}
+
+const spd = Math.hypot(vx, vy);
+if (spd > 0.40) {
+  vx = (vx / spd) * 0.40;
+  vy = (vy / spd) * 0.40;
+}
 
 // Heading alignment via IMU (Ears)
 let headingError = targetGlobalAngle - headingRad;
@@ -173,8 +191,11 @@ while (headingError > Math.PI) headingError -= 2 * Math.PI;
 while (headingError < -Math.PI) headingError += 2 * Math.PI;
 const omega = Math.max(-1.5, Math.min(1.5, headingError * 1.5));
 
-// Command Holonomic Wheels
-robot.setVelocity(localVx, localVy, omega);
+// ==========================================
+// 4. ACT (Step 4 from Whiteboard)
+// ==========================================
+// Command Holonomic Wheels (vx: forward, vy: strafe crab, omega: rotation)
+robot.setVelocity(vx, vy, omega);
 `,
 
       // 1. User-Requested Default Autonomous Obstacle Avoidance Template

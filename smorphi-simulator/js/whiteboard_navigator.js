@@ -50,7 +50,9 @@ const robotHeading = sensors.imu.headingRad;
 // - read LIDAR for position (posisi koordinat relatif terhadap origin (0,0))
 const currentX = sensors.pose.x - memory.startX;
 const currentY = sensors.pose.y - memory.startY;
-const frontDist = sensors.lidar.getFront(30);
+const frontDist = sensors.lidar.getFront(35);
+const leftDist = sensors.lidar.getLeft(45);
+const rightDist = sensors.lidar.getRight(45);
 
 // ==========================================
 // 3. THINK
@@ -74,7 +76,7 @@ while (headingError > Math.PI) headingError -= 2 * Math.PI;
 while (headingError < -Math.PI) headingError += 2 * Math.PI;
 
 // - Hitung jarak & cek apakah sudah sampai di titik (Rule 4: Interval 5 sec / point)
-if (distance < 0.20) {
+if (distance < 0.28) {
   memory.isWaiting = true;
 }
 
@@ -97,17 +99,41 @@ if (memory.isWaiting) {
   // - Diam selama interval 5 detik pada titik target
   robot.setVelocity(0, 0, 0);
 } else {
-  // - Gerak menggunakan Holonomic / Omnidirectional wheel (Vx, Vy, Omega)
-  const speed = 0.35;
-  const vxGlobal = (deltaX / distance) * speed;
-  const vyGlobal = (deltaY / distance) * speed;
+  // - Deteksi lorong sempit dan morphing bentuk "I"
+  if (leftDist < 0.36 && rightDist < 0.36) {
+    if (sensors.shape !== "I") robot.setShape("I");
+  } else if (sensors.shape === "I" && leftDist > 0.60 && rightDist > 0.60) {
+    robot.setShape("O");
+  }
 
-  // Transformasi ke frame bodi robot (roda Mecanum/Omni)
-  const cosH = Math.cos(robotHeading);
-  const sinH = Math.sin(robotHeading);
-  const vxLocal = vxGlobal * cosH + vyGlobal * sinH;
-  const vyLocal = -vxGlobal * sinH + vyGlobal * cosH;
-  const omega = headingError * 1.5;
+  // - Target vector in robot local frame
+  let targetAngleRel = targetHeading - robotHeading;
+  while (targetAngleRel > Math.PI) targetAngleRel -= 2 * Math.PI;
+  while (targetAngleRel < -Math.PI) targetAngleRel += 2 * Math.PI;
 
+  let vxLocal = Math.cos(targetAngleRel) * 0.32;
+  let vyLocal = Math.sin(targetAngleRel) * 0.32;
+
+  // - 2D LiDAR Obstacle Repulsion (Eyes) & Holonomic Crabbing
+  if (frontDist < 0.70) {
+    const urgency = (0.70 - frontDist) / 0.70;
+    vxLocal -= urgency * 0.45;
+    const dodgeDir = leftDist > rightDist ? 1 : -1;
+    vyLocal += dodgeDir * urgency * 0.50;
+  }
+  if (leftDist < 0.45) {
+    vyLocal -= ((0.45 - leftDist) / 0.45) * 0.35;
+  }
+  if (rightDist < 0.45) {
+    vyLocal += ((0.45 - rightDist) / 0.45) * 0.35;
+  }
+
+  const spd = Math.hypot(vxLocal, vyLocal);
+  if (spd > 0.40) {
+    vxLocal = (vxLocal / spd) * 0.40;
+    vyLocal = (vyLocal / spd) * 0.40;
+  }
+
+  const omega = Math.max(-1.5, Math.min(1.5, headingError * 1.5));
   robot.setVelocity(vxLocal, vyLocal, omega);
 }
