@@ -301,6 +301,7 @@ class SensorSuite {
       isMorphing: robot.isMorphing,
       target: { ...this.target },
       collision: robot.inCollision,
+      obstacles: this.map.obstacles,
     };
   }
 }

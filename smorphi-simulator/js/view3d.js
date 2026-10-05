@@ -359,6 +359,13 @@ class Viewport3D {
 
     this.trajectoryLine = new THREE.Line(geom, mat);
     this.scene.add(this.trajectoryLine);
+
+    const pathGeom = new THREE.BufferGeometry();
+    pathGeom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(2000 * 3), 3));
+    pathGeom.setDrawRange(0, 0);
+    const pathMat = new THREE.LineBasicMaterial({ color: 0xe879f9, transparent: true, opacity: 0.95 });
+    this.plannedPathLine = new THREE.Line(pathGeom, pathMat);
+    this.scene.add(this.plannedPathLine);
   }
 
   buildGoalMarker() {
@@ -505,9 +512,19 @@ class Viewport3D {
 
     // 8. Update Goal Marker Animation
     if (this.goalGroup) {
-      this.goalGroup.position.set(this.map.goal.x, 0, this.map.goal.y);
+      const g = robot.debugGoal || this.map.goal;
+      this.goalGroup.position.set(g.x, 0, g.y);
       this.goalBeacon.rotation.y += 1.8 * dt;
       this.goalBeacon.rotation.x += 0.8 * dt;
+    }
+
+    if (this.plannedPathLine) {
+      const pts = robot.debugPath || [];
+      const n = Math.min(pts.length, 2000);
+      const attr = this.plannedPathLine.geometry.attributes.position;
+      for (let i = 0; i < n; i++) attr.setXYZ(i, pts[i].x, 0.03, pts[i].y);
+      this.plannedPathLine.geometry.setDrawRange(0, n);
+      attr.needsUpdate = true;
     }
 
     // 9. Camera Controls & Camera Modes

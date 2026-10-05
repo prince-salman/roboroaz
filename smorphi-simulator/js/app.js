@@ -150,6 +150,8 @@ class SmorphiApp {
         const code = this.editor ? this.editor.getValue() : "";
         const res = this.codeEngine.compileScript(code);
         if (res.success) {
+          this.robot.debugPath = [];
+          this.robot.debugGoal = null;
           this.codeEngine.start();
           this.manualControlEnabled = false;
           this.updateModeIndicator("AUTONOMOUS");
