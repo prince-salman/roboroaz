@@ -626,8 +626,12 @@ class Viewport3D {
       for (let i = 0; i < 3; i++) {
         const cube = cargoManager.cubes[i];
         if (this.cargoMeshes[i]) {
-          this.cargoMeshes[i].position.set(cube.x, cube.size / 2, cube.y);
-          this.cargoMeshes[i].rotation.y = -cube.theta;
+          const safeX = Number.isFinite(cube.x) ? Math.max(0.05, Math.min(4.95, cube.x)) : 2.5;
+          const safeY = Number.isFinite(cube.y) ? Math.max(0.05, Math.min(4.95, cube.y)) : 2.5;
+          const safeTheta = Number.isFinite(cube.theta) ? cube.theta : 0;
+          this.cargoMeshes[i].position.set(safeX, (cube.size || 0.09) / 2, safeY);
+          this.cargoMeshes[i].rotation.y = -safeTheta;
+          this.cargoMeshes[i].visible = true;
         }
       }
     }

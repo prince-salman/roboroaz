@@ -38,6 +38,10 @@ class CargoCube {
     this.shakeOffsetX = 0.0;
     this.shakeOffsetY = 0.0;
     this.shakeVelY = 0.0;
+
+    // Last known safe coordinates for recovery
+    this.lastSafeX = x;
+    this.lastSafeY = y;
   }
 
   /**
@@ -55,6 +59,8 @@ class CargoCube {
     this.shakeOffsetX = 0;
     this.shakeOffsetY = 0;
     this.shakeVelY = 0;
+    this.lastSafeX = x;
+    this.lastSafeY = y;
   }
 
   /**
@@ -93,19 +99,44 @@ class CargoCube {
    * @param {SmorphiRobot} robot
    */
   update(dt, robot) {
-    // UNTOUCHED, PUSHING_ON_GROUND, or DELIVERED_AT_GOAL: Simulating floor friction on ground
+    // 1. Guard against NaN or infinite coordinates - restore to last safe position
+    if (!Number.isFinite(this.x) || !Number.isFinite(this.y)) {
+      this.x = Number.isFinite(this.lastSafeX) ? this.lastSafeX : 2.5;
+      this.y = Number.isFinite(this.lastSafeY) ? this.lastSafeY : 2.5;
+      this.vx = 0;
+      this.vy = 0;
+    } else {
+      this.lastSafeX = this.x;
+      this.lastSafeY = this.y;
+    }
+
+    if (!Number.isFinite(this.vx)) this.vx = 0;
+    if (!Number.isFinite(this.vy)) this.vy = 0;
+    if (!Number.isFinite(this.theta)) this.theta = 0;
+    if (!Number.isFinite(this.omega)) this.omega = 0;
+
+    // 2. Velocity magnitude limit (prevent explosive impulses)
+    const maxSpd = 1.0;
     const speed = Math.hypot(this.vx, this.vy);
-    if (speed > 1e-4) {
+    if (speed > maxSpd) {
+      const scale = maxSpd / speed;
+      this.vx *= scale;
+      this.vy *= scale;
+    }
+
+    // 3. UNTOUCHED, PUSHING_ON_GROUND, or DELIVERED_AT_GOAL: Simulating floor friction on ground
+    const currentSpeed = Math.hypot(this.vx, this.vy);
+    if (currentSpeed > 1e-4) {
       const g = 9.81;
       const muK = CONFIG.CARGO.FLOOR_FRICTION_KINETIC || 0.28;
       const frictionAccel = muK * g;
       const speedDelta = frictionAccel * dt;
 
-      if (speed <= speedDelta) {
+      if (currentSpeed <= speedDelta) {
         this.vx = 0;
         this.vy = 0;
       } else {
-        const factor = (speed - speedDelta) / speed;
+        const factor = (currentSpeed - speedDelta) / currentSpeed;
         this.vx *= factor;
         this.vy *= factor;
       }
@@ -114,7 +145,7 @@ class CargoCube {
       this.y += this.vy * dt;
     }
 
-    // Rotational damping on floor
+    // 4. Rotational damping on floor
     if (Math.abs(this.omega) > 1e-4) {
       const rotDamping = 8.0 * dt;
       if (Math.abs(this.omega) <= rotDamping) {
@@ -124,6 +155,10 @@ class CargoCube {
       }
       this.theta += this.omega * dt;
     }
+
+    // 5. Hard arena boundary clamping (Half size is 0.045m, safety inset 0.010m -> [0.055, 4.945])
+    this.x = Math.max(0.055, Math.min(4.945, this.x));
+    this.y = Math.max(0.055, Math.min(4.945, this.y));
   }
 }
 
@@ -289,14 +324,14 @@ class CargoManager {
 
         // Scoop backplate physical non-penetration constraint (pushing forward)
         if (lx < 0.135) {
-          const pushForward = 0.135 - lx;
+          const pushForward = Math.min(0.035, 0.135 - lx);
           cube.x += pushForward * cosT;
           cube.y += pushForward * sinT;
         }
 
         // Side prongs centering guide (keeps cube centered in scoop during pushing)
         if (Math.abs(ly) > 0.045) {
-          const centerPushY = -Math.sign(ly) * (Math.abs(ly) - 0.045) * 0.5;
+          const centerPushY = Math.max(-0.025, Math.min(0.025, -Math.sign(ly) * (Math.abs(ly) - 0.045) * 0.5));
           cube.x += -centerPushY * sinT;
           cube.y += centerPushY * cosT;
         }
