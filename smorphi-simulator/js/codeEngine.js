@@ -482,7 +482,7 @@ if (M.state === "BACKING_UP") {
 }
 
 const cubes = sensors.cargo.cubes || [];
-const undelivered = cubes.filter(c => Math.hypot(c.x - GX, c.y - GY) >= 0.65 && c.state !== "DELIVERED_AT_GOAL");
+const undelivered = cubes.filter(c => Math.hypot(c.x - GX, c.y - GY) >= 0.48 && c.state !== "DELIVERED_AT_GOAL");
 const deliveredCount = 3 - undelivered.length;
 
 if (deliveredCount !== M.lastDelivered) {
@@ -610,7 +610,7 @@ let isPushingCube = false;
 if (undelivered.length === 0) {
   targetGoalX = GX;
   targetGoalY = GY;
-  if (Math.hypot(GX - X, GY - Y) < 0.35) {
+  if (Math.hypot(GX - X, GY - Y) < 0.65) {
     robot.setVelocity(0, 0, 0);
     return;
   }

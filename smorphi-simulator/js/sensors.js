@@ -86,21 +86,22 @@ class SensorSuite {
     this.updateOdometry(robot);
 
     // 4. Update Target Objective Tracker (Passive)
-    this.updateTarget(robot);
+    this.updateTarget(robot, cargoManager);
 
     // 5. Update Cargo Sensor Readings
     if (cargoManager) {
       this.cargo = cargoManager.getTelemetrySummary(robot);
     }
 
-    // 6. Update Mission & Finish Tracker
+    // 6. Update Mission & Finish Tracker: Completed ONLY when all 3 cubes are delivered!
+    const allCubesDelivered = (this.target.reached === true);
     if (missionInfo) {
       this.mission.state = missionInfo.state || "RUNNING";
-      this.mission.completed = missionInfo.state === "FINISHED" || this.target.reached;
+      this.mission.completed = (missionInfo.state === "FINISHED") || allCubesDelivered;
       this.mission.time = missionInfo.time || 0;
       this.mission.round = missionInfo.round || 1;
     } else {
-      this.mission.completed = this.target.reached;
+      this.mission.completed = allCubesDelivered;
     }
   }
 
@@ -221,7 +222,7 @@ class SensorSuite {
   /**
    * Update relative target goal coordinates (Passive beacon)
    */
-  updateTarget(robot) {
+  updateTarget(robot, cargoManager = null) {
     const gx = this.map.goal.x;
     const gy = this.map.goal.y;
     const dx = gx - robot.x;
@@ -239,7 +240,14 @@ class SensorSuite {
     this.target.distance = dist;
     this.target.angle = relAngle;
     this.target.angleDeg = (relAngle * 180) / Math.PI;
-    this.target.reached = dist < 0.35;
+
+    const goalRadius = (CONFIG.ARENA && CONFIG.ARENA.GOAL_RADIUS) || 0.45;
+    const cubes = (cargoManager && cargoManager.cubes) ? cargoManager.cubes : [];
+    const deliveredCount = cubes.filter(c => c.state === "DELIVERED_AT_GOAL" || Math.hypot(c.x - gx, c.y - gy) <= goalRadius + 0.03).length;
+    this.target.deliveredCount = deliveredCount;
+    this.target.allDelivered = (cubes.length >= 3 && deliveredCount === 3);
+    // Target reached ONLY when all 3 cubes are delivered at the yellow goal!
+    this.target.reached = (cubes.length >= 3 && deliveredCount === 3);
   }
 
   /**

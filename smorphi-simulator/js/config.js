@@ -12,6 +12,7 @@ const CONFIG = {
     WALL_HEIGHT: 0.4, // meters in 3D
     DEFAULT_SPAWN: { x: 2.5, y: 0.6, theta: Math.PI / 2 }, // Initial robot position (centered facing +Y)
     DEFAULT_GOAL: { x: 4.2, y: 4.2 }, // Default target objective
+    GOAL_RADIUS: 0.45, // Target delivery zone radius (45 cm)
   },
 
   // Smorphi Physical Robot Specifications (Single-Block Base Unit)

@@ -532,16 +532,40 @@ class Viewport3D {
     cyl.position.y = 0.42;
     this.goalGroup.add(cyl);
 
-    // Base ring on floor
-    const ringGeo = new THREE.RingGeometry(0.18, 0.26, 32);
-    const ringMat = new THREE.MeshBasicMaterial({
+    // Floor Delivery Pad (Yellow landing zone disc)
+    const padGeo = new THREE.CircleGeometry(0.45, 32);
+    const padMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      transparent: true,
+      opacity: 0.16,
+      side: THREE.DoubleSide,
+    });
+    const pad = new THREE.Mesh(padGeo, padMat);
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.y = 0.003;
+    this.goalGroup.add(pad);
+
+    // Outer delivery boundary ring on floor
+    const outerRingGeo = new THREE.RingGeometry(0.44, 0.48, 32);
+    const outerRingMat = new THREE.MeshBasicMaterial({
       color: 0xfacc15,
       side: THREE.DoubleSide,
     });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.005;
-    this.goalGroup.add(ring);
+    const outerRing = new THREE.Mesh(outerRingGeo, outerRingMat);
+    outerRing.rotation.x = -Math.PI / 2;
+    outerRing.position.y = 0.005;
+    this.goalGroup.add(outerRing);
+
+    // Inner concentric target ring
+    const innerRingGeo = new THREE.RingGeometry(0.18, 0.22, 32);
+    const innerRingMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      side: THREE.DoubleSide,
+    });
+    const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+    innerRing.rotation.x = -Math.PI / 2;
+    innerRing.position.y = 0.006;
+    this.goalGroup.add(innerRing);
 
     this.scene.add(this.goalGroup);
   }

@@ -450,7 +450,7 @@ class SmorphiApp {
     }
 
     // Render 3D View and Telemetry
-    const isGoalReached = this.missionState === "FINISHED" || (this.sensors.target && this.sensors.target.reached);
+    const isGoalReached = this.missionState === "FINISHED";
     this.view3d.update(this.robot, this.sensors, dt, this.cargo, isGoalReached);
     this.telemetry.update(this.robot, this.sensors, this.map);
   }
@@ -491,12 +491,12 @@ class SmorphiApp {
 
     // 6. Check Finish Point Condition: All 3 cubes must be pushed into the yellow goal marker
     if (this.missionState === "RUNNING") {
+      const goalRadius = (CONFIG.ARENA && CONFIG.ARENA.GOAL_RADIUS) || 0.45;
       const deliveredCount = this.cargo.cubes.filter(c => {
-        return Math.hypot(c.x - this.map.goal.x, c.y - this.map.goal.y) < 0.65;
+        return c.state === "DELIVERED_AT_GOAL" || Math.hypot(c.x - this.map.goal.x, c.y - this.map.goal.y) <= goalRadius + 0.03;
       }).length;
-      const robotDistToGoal = Math.hypot(this.robot.x - this.map.goal.x, this.robot.y - this.map.goal.y);
 
-      if (deliveredCount === 3 && robotDistToGoal < 0.95) {
+      if (deliveredCount === 3) {
         this.handleFinishReached();
       }
     }
@@ -511,8 +511,9 @@ class SmorphiApp {
     this.updateModeIndicator("FINISH REACHED!");
     this.playVictoryFanfare();
 
+    const goalRadius = (CONFIG.ARENA && CONFIG.ARENA.GOAL_RADIUS) || 0.45;
     const deliveredCount = this.cargo.cubes.filter(c => {
-      return Math.hypot(c.x - this.map.goal.x, c.y - this.map.goal.y) < 0.65;
+      return c.state === "DELIVERED_AT_GOAL" || Math.hypot(c.x - this.map.goal.x, c.y - this.map.goal.y) <= goalRadius + 0.03;
     }).length;
     const cargoMass = (deliveredCount * CONFIG.CARGO.MASS).toFixed(2);
     const duration = this.missionTime.toFixed(1);

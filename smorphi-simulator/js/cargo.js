@@ -290,8 +290,9 @@ class CargoManager {
 
     for (const cube of this.cubes) {
       // Check if cube is delivered to the yellow goal marker
+      const goalRadius = (CONFIG.ARENA && CONFIG.ARENA.GOAL_RADIUS) || 0.45;
       const distToGoal = (map && map.goal) ? Math.hypot(cube.x - map.goal.x, cube.y - map.goal.y) : 999;
-      if (distToGoal < 0.65 || (cube.state === "DELIVERED_AT_GOAL" && distToGoal < 0.90)) {
+      if (distToGoal <= goalRadius + 0.03 || (cube.state === "DELIVERED_AT_GOAL" && distToGoal <= goalRadius + 0.10)) {
         cube.state = "DELIVERED_AT_GOAL";
         deliveredCount++;
       }
@@ -345,7 +346,7 @@ class CargoManager {
         if (cube.state === "PUSHING_ON_GROUND") {
           const spd = Math.hypot(cube.vx, cube.vy);
           if (spd < 0.01 && dist > 0.35) {
-            cube.state = (distToGoal < 0.65) ? "DELIVERED_AT_GOAL" : "UNTOUCHED";
+            cube.state = (distToGoal <= goalRadius + 0.03) ? "DELIVERED_AT_GOAL" : "UNTOUCHED";
           }
         }
       }
