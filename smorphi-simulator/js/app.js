@@ -191,7 +191,6 @@ class SmorphiApp {
           this.codeEngine.compileScript(this.editor.getValue());
           this.codeEngine.log(`Editor reset to ${val} template.`);
         }
-        }
       });
     }
 
@@ -712,6 +711,12 @@ class SmorphiApp {
 }
 
 // Bootstrap once DOM is ready
-window.addEventListener("DOMContentLoaded", () => {
-  window.smorphiApp = new SmorphiApp();
-});
+if (typeof window !== "undefined") {
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", () => {
+      window.smorphiApp = new SmorphiApp();
+    });
+  } else {
+    window.smorphiApp = new SmorphiApp();
+  }
+}
