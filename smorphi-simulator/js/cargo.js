@@ -88,51 +88,12 @@ class CargoCube {
   }
 
   /**
-   * Update cube state, floor friction drag, and scoop coupling
+   * Update cube state, floor friction drag on ground
    * @param {number} dt - Delta time
    * @param {SmorphiRobot} robot
    */
   update(dt, robot) {
-    if (this.state === "CAPTURED_INSIDE_MESH") {
-      // Robot-coupled movement: the cube is held within the front scoop
-      const cosT = Math.cos(robot.theta);
-      const sinT = Math.sin(robot.theta);
-
-      // Inertial shifting under centrifugal force and angular acceleration:
-      // Centrifugal force outward along +X: Fc = m * omega^2 * r
-      // Tangential force lateral along Y: Ft = m * alpha * r
-      const omega = robot.omega;
-      const ax = robot.ax;
-      const ay = robot.ay;
-
-      // Effective lateral spring-mass system inside scoop cavity (cavity inner width 150mm vs cube 90mm -> ±30mm play)
-      const maxPlayY = 0.025; // 25 mm play
-      const targetShakeY = Math.max(-maxPlayY, Math.min(maxPlayY, -ay * 0.015 - omega * 0.008));
-      
-      // Damped harmonic restoration
-      this.shakeVelY += (targetShakeY - this.shakeOffsetY) * 120 * dt - this.shakeVelY * 18 * dt;
-      this.shakeOffsetY += this.shakeVelY * dt;
-      this.shakeOffsetY = Math.max(-maxPlayY, Math.min(maxPlayY, this.shakeOffsetY));
-
-      // Inertial compression back against mesh backplate when braking
-      const maxPlayX = 0.015;
-      this.shakeOffsetX = Math.max(-maxPlayX, Math.min(0.005, -ax * 0.006));
-
-      // Compute global position from robot pose + slot offset + shake
-      const localX = this.slotOffsetX + this.shakeOffsetX;
-      const localY = this.slotOffsetY + this.shakeOffsetY;
-
-      this.x = robot.x + localX * cosT - localY * sinT;
-      this.y = robot.y + localX * sinT + localY * cosT;
-      this.theta = robot.theta;
-
-      this.vx = robot.globalVx;
-      this.vy = robot.globalVy;
-      this.omega = robot.omega;
-      return;
-    }
-
-    // UNTOUCHED or PUSHING_ON_GROUND: Simulating floor friction
+    // UNTOUCHED, PUSHING_ON_GROUND, or DELIVERED_AT_GOAL: Simulating floor friction on ground
     const speed = Math.hypot(this.vx, this.vy);
     if (speed > 1e-4) {
       const g = 9.81;
@@ -225,10 +186,11 @@ class CargoManager {
   }
 
   /**
-   * Update physics of all cubes and resolve scoop interactions
+   * Update physics of all cubes and resolve scoop ground-pushing interactions
    */
   update(dt, robot, map) {
-    let capturedCount = 0;
+    let pushingCount = 0;
+    let deliveredCount = 0;
     let hasScoopContact = false;
     let minProximity = 5.0;
 
@@ -236,6 +198,13 @@ class CargoManager {
     const sinT = Math.sin(robot.theta);
 
     for (const cube of this.cubes) {
+      // Check if cube is delivered to the yellow goal marker
+      const distToGoal = (map && map.goal) ? Math.hypot(cube.x - map.goal.x, cube.y - map.goal.y) : 999;
+      if (distToGoal < 0.65 || (cube.state === "DELIVERED_AT_GOAL" && distToGoal < 0.90)) {
+        cube.state = "DELIVERED_AT_GOAL";
+        deliveredCount++;
+      }
+
       // Relative vector from robot center to cube center
       const dx = cube.x - robot.x;
       const dy = cube.y - robot.y;
@@ -245,55 +214,56 @@ class CargoManager {
       const ly = -dx * sinT + dy * cosT;
       const dist = Math.hypot(dx, dy);
 
-      if (cube.state === "CAPTURED_INSIDE_MESH") {
-        capturedCount++;
+      if (lx > 0 && Math.abs(ly) < 0.25 && dist < minProximity) {
+        minProximity = dist;
+      }
+
+      // Scoop physical push interaction:
+      // Scoop extends from mount x=0.085 to x=0.225. Inner half-width is 0.075m.
+      // Cube half size is 0.045m.
+      // Minimum lx for cube center is scoop backplate (0.085) + cube.halfSize (0.045) = 0.130m.
+      const inFrontOfScoop = (lx >= 0.08 && lx <= 0.28 && Math.abs(ly) <= 0.11);
+
+      if (inFrontOfScoop) {
         hasScoopContact = true;
-      } else {
-        // Track proximity for sensors
-        if (lx > 0 && Math.abs(ly) < 0.25 && dist < minProximity) {
-          minProximity = dist;
+        if (cube.state !== "DELIVERED_AT_GOAL") {
+          cube.state = "PUSHING_ON_GROUND";
+          pushingCount++;
         }
 
-        // Scoop catchment zone:
-        // Scoop extends from mount x=0.085 to x=0.225. Inner half-width is 0.075m.
-        const inScoopCavity = (lx >= 0.070 && lx <= 0.245 && Math.abs(ly) <= 0.075 && capturedCount < 3);
+        // Scoop backplate physical non-penetration constraint (pushing forward)
+        if (lx < 0.135) {
+          const pushForward = 0.135 - lx;
+          cube.x += pushForward * cosT;
+          cube.y += pushForward * sinT;
+        }
 
-        if (inScoopCavity) {
-          // Capture the cube!
-          cube.state = "CAPTURED_INSIDE_MESH";
-          cube.captureSlot = capturedCount;
-          
-          // Slot positioning inside scoop (front-to-back nesting)
-          const baseOffset = (CONFIG.SCOOP ? CONFIG.SCOOP.MOUNT_X : 0.085) + 0.055;
-          cube.slotOffsetX = baseOffset + (capturedCount * 0.025);
-          cube.slotOffsetY = (capturedCount % 2 === 0 ? 0.015 : -0.015);
+        // Side prongs centering guide (keeps cube centered in scoop during pushing)
+        if (Math.abs(ly) > 0.045) {
+          const centerPushY = -Math.sign(ly) * (Math.abs(ly) - 0.045) * 0.5;
+          cube.x += -centerPushY * sinT;
+          cube.y += centerPushY * cosT;
+        }
 
-          capturedCount++;
-          hasScoopContact = true;
-        } else if (lx >= 0.18 && lx <= 0.26 && Math.abs(ly) > 0.075 && Math.abs(ly) <= 0.11) {
-          // Contact with outer front scoop prongs: Pushing on ground
-          cube.state = "PUSHING_ON_GROUND";
-          hasScoopContact = true;
-
-          // Transfer forward velocity with floor drag penalty
-          const pushForce = Math.max(0, robot.vx);
-          cube.vx = robot.globalVx * 0.9;
-          cube.vy = robot.globalVy * 0.9;
-        } else if (cube.state === "PUSHING_ON_GROUND") {
+        // Transfer forward movement: cube slides across ground with robot
+        if (robot.vx > 0.01) {
+          cube.vx = robot.globalVx;
+          cube.vy = robot.globalVy;
+        }
+      } else {
+        if (cube.state === "PUSHING_ON_GROUND") {
           const spd = Math.hypot(cube.vx, cube.vy);
           if (spd < 0.01 && dist > 0.35) {
-            cube.state = "UNTOUCHED";
+            cube.state = (distToGoal < 0.65) ? "DELIVERED_AT_GOAL" : "UNTOUCHED";
           }
-        } else {
-          cube.state = "UNTOUCHED";
         }
       }
 
       cube.update(dt, robot);
     }
 
-    // Update robot loaded mass, CoM offset, and traction slip
-    robot.updateCargoState(capturedCount, hasScoopContact, minProximity);
+    // Update robot loaded mass, CoM offset, and traction slip from pushing
+    robot.updateCargoState(pushingCount, hasScoopContact, minProximity);
   }
 
   /**
@@ -320,6 +290,7 @@ class CargoManager {
         css: cube.css,
         label: cube.label,
         state: cube.state,
+        isDelivered: cube.state === "DELIVERED_AT_GOAL",
         dist: dist,
         relAngle: relAngle,
         relAngleDeg: (relAngle * 180) / Math.PI,
@@ -328,13 +299,16 @@ class CargoManager {
       };
     });
 
-    const capturedCount = this.cubes.filter(c => c.state === "CAPTURED_INSIDE_MESH").length;
+    const deliveredCount = this.cubes.filter(c => c.state === "DELIVERED_AT_GOAL").length;
+    const pushingCount = this.cubes.filter(c => c.state === "PUSHING_ON_GROUND").length;
 
     return {
-      count: capturedCount,
-      totalMassKg: capturedCount * CONFIG.CARGO.MASS,
-      loadPercent: (capturedCount / CONFIG.CARGO.COUNT) * 100,
-      isFull: capturedCount >= CONFIG.CARGO.COUNT,
+      count: deliveredCount,
+      deliveredCount: deliveredCount,
+      pushingCount: pushingCount,
+      totalMassKg: deliveredCount * CONFIG.CARGO.MASS,
+      loadPercent: (deliveredCount / CONFIG.CARGO.COUNT) * 100,
+      isFull: deliveredCount >= CONFIG.CARGO.COUNT,
       hasContact: robot.hasScoopContact,
       frontClearance: robot.scoopProximity,
       comOffsetX: robot.comOffsetX,

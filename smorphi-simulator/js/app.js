@@ -489,13 +489,14 @@ class SmorphiApp {
       this.playCollisionSound();
     }
 
-    // 6. Check Finish Point Condition
+    // 6. Check Finish Point Condition: All 3 cubes must be pushed into the yellow goal marker
     if (this.missionState === "RUNNING") {
-      const dx = this.robot.x - this.map.goal.x;
-      const dy = this.robot.y - this.map.goal.y;
-      const distToGoal = Math.hypot(dx, dy);
+      const deliveredCount = this.cargo.cubes.filter(c => {
+        return Math.hypot(c.x - this.map.goal.x, c.y - this.map.goal.y) < 0.65;
+      }).length;
+      const robotDistToGoal = Math.hypot(this.robot.x - this.map.goal.x, this.robot.y - this.map.goal.y);
 
-      if (distToGoal < 0.38) {
+      if (deliveredCount === 3 && robotDistToGoal < 0.95) {
         this.handleFinishReached();
       }
     }
@@ -510,14 +511,16 @@ class SmorphiApp {
     this.updateModeIndicator("FINISH REACHED!");
     this.playVictoryFanfare();
 
-    const capturedCount = this.cargo.cubes.filter(c => c.state === "CAPTURED_INSIDE_MESH").length;
-    const cargoMass = (capturedCount * CONFIG.CARGO.MASS).toFixed(2);
+    const deliveredCount = this.cargo.cubes.filter(c => {
+      return Math.hypot(c.x - this.map.goal.x, c.y - this.map.goal.y) < 0.65;
+    }).length;
+    const cargoMass = (deliveredCount * CONFIG.CARGO.MASS).toFixed(2);
     const duration = this.missionTime.toFixed(1);
     const dist = this.robot.totalDistanceTraveled.toFixed(2);
     const hits = this.robot.collisionCount;
 
     // Log to simulator console
-    this.codeEngine.log(`🏁 [FINISH POINT TERCAPAI] Babak #${this.roundNumber} sukses dalam ${duration}s! Kargo: ${capturedCount}/3 (${cargoMass} kg).`);
+    this.codeEngine.log(`🏁 [TARGET TERCAPAI] Seluruh 3 kubus sukses didorong ke tanda kuning dalam ${duration}s! Jarak: ${dist}m.`);
 
     // Populate Modal
     const roundBadge = document.getElementById("finish-round-badge");
@@ -525,17 +528,17 @@ class SmorphiApp {
 
     const descEl = document.getElementById("finish-status-desc");
     if (descEl) {
-      if (capturedCount === 3) {
-        descEl.textContent = "🌟 MISI SEMPURNA! Seluruh 3 kubus muatan berhasil diangkut ke finish point.";
-      } else if (capturedCount > 0) {
-        descEl.textContent = `⭐ MISI BERHASIL! ${capturedCount} dari 3 kubus muatan berhasil diantar ke finish point.`;
+      if (deliveredCount === 3) {
+        descEl.textContent = "🌟 MISI SEMPURNA! Seluruh 3 kubus berhasil didorong ke tanda kuning (Finish Zone).";
+      } else if (deliveredCount > 0) {
+        descEl.textContent = `⭐ MISI BERHASIL! ${deliveredCount} dari 3 kubus berhasil didorong ke tanda kuning.`;
       } else {
-        descEl.textContent = "🏁 FINISH POINT TERCAPAI! Smorphi sampai di titik akhir tanpa membawa kargo.";
+        descEl.textContent = "🏁 FINISH POINT TERCAPAI! Smorphi sampai di titik akhir.";
       }
     }
 
     const statCargo = document.getElementById("finish-cargo-stat");
-    if (statCargo) statCargo.textContent = `${capturedCount}/3 Kubus (${cargoMass} kg)`;
+    if (statCargo) statCargo.textContent = `${deliveredCount}/3 Kubus (${cargoMass} kg)`;
 
     const statTime = document.getElementById("finish-time-stat");
     if (statTime) statTime.textContent = `${duration} s`;

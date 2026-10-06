@@ -448,28 +448,52 @@ if (!M.initialized) {
   M.path = [];
   M.pi = 0;
   M.replanTimer = 999;
-  M.lastLoggedCount = 0;
-  M.done = false;
-  robot.log("=== Autonomous 3-Cube Cargo Retrieval & Transport ===");
-  robot.log("Target: Ambil seluruh 3 kubus ke serokan lalu antar ke Finish Point");
+  M.lastDelivered = 0;
+  M.state = "NAVIGATE";
+  M.backTimer = 0;
+  robot.log("=== Autonomous 3-Cube Cargo Pusher ===");
+  robot.log("Misi: Mendorong seluruh 3 kubus ke tanda kuning target");
 }
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const X = sensors.pose.x;
 const Y = sensors.pose.y;
 const TH = sensors.imu.headingRad;
-const captured = sensors.cargo.count || 0;
+const GX = sensors.target.x;
+const GY = sensors.target.y;
 
-if (captured !== M.lastLoggedCount) {
-  M.lastLoggedCount = captured;
-  robot.log("Kubus berhasil masuk ke serokan! Muatan: " + captured + "/3 (" + sensors.cargo.totalMassKg.toFixed(2) + " kg)");
-  M.path = [];
-  M.replanTimer = 999;
-}
+if (robot.setGoalMarker) robot.setGoalMarker(GX, GY);
 
 if (sensors.mission && sensors.mission.completed) {
   robot.setVelocity(0, 0, 0);
   return;
+}
+
+if (M.state === "BACKING_UP") {
+  M.backTimer -= dt;
+  if (M.backTimer <= 0) {
+    M.state = "NAVIGATE";
+    M.path = [];
+    M.replanTimer = 999;
+  } else {
+    robot.setVelocity(-0.25, 0, 0);
+    return;
+  }
+}
+
+const cubes = sensors.cargo.cubes || [];
+const undelivered = cubes.filter(c => Math.hypot(c.x - GX, c.y - GY) >= 0.65 && c.state !== "DELIVERED_AT_GOAL");
+const deliveredCount = 3 - undelivered.length;
+
+if (deliveredCount !== M.lastDelivered) {
+  M.lastDelivered = deliveredCount;
+  robot.log("Kubus berhasil didorong ke tanda kuning! Terkirim: " + deliveredCount + "/3");
+  if (deliveredCount < 3) {
+    M.state = "BACKING_UP";
+    M.backTimer = 0.8;
+    robot.setVelocity(-0.25, 0, 0);
+    return;
+  }
 }
 
 const buildCostmap = () => {
@@ -579,46 +603,55 @@ const astar = (costmap, sx, sy, gx, gy, safe) => {
   return raw;
 };
 
-let goalX = sensors.target.x, goalY = sensors.target.y, isScoopMode = false;
-const uncollected = (sensors.cargo.cubes || []).filter(c => c.state !== "CAPTURED_INSIDE_MESH");
+let targetGoalX = GX;
+let targetGoalY = GY;
+let isPushingCube = false;
 
-if (uncollected.length > 0 && captured < 3) {
-  uncollected.sort((a, b) => Math.hypot(a.x - X, a.y - Y) - Math.hypot(b.x - X, b.y - Y));
-  const tc = uncollected[0];
-  goalX = tc.x;
-  goalY = tc.y;
-  const distToCube = Math.hypot(goalX - X, goalY - Y);
-  if (distToCube < 0.38) {
-    isScoopMode = true;
+if (undelivered.length === 0) {
+  targetGoalX = GX;
+  targetGoalY = GY;
+  if (Math.hypot(GX - X, GY - Y) < 0.35) {
+    robot.setVelocity(0, 0, 0);
+    return;
   }
 } else {
-  goalX = sensors.target.x;
-  goalY = sensors.target.y;
-  if (!M.allLogged) {
-    M.allLogged = true;
-    robot.log("Seluruh 3 kubus kargo lengkap di serokan! Mengantar muatan ke Finish Point...");
-  }
-}
+  undelivered.sort((a, b) => Math.hypot(a.x - X, a.y - Y) - Math.hypot(b.x - X, b.y - Y));
+  const tc = undelivered[0];
+  const distToCube = Math.hypot(tc.x - X, tc.y - Y);
+  const cosT = Math.cos(TH);
+  const sinT = Math.sin(TH);
+  const lx = (tc.x - X) * cosT + (tc.y - Y) * sinT;
+  const ly = -(tc.x - X) * sinT + (tc.y - Y) * cosT;
+  const inScoopContact = (lx >= 0.08 && lx <= 0.35 && Math.abs(ly) <= 0.14);
 
-if (robot.setGoalMarker) robot.setGoalMarker(sensors.target.x, sensors.target.y);
-
-if (isScoopMode) {
-  const targetAng = Math.atan2(goalY - Y, goalX - X);
-  const angDiff = wrap(targetAng - TH);
-  if (Math.abs(angDiff) > 0.15) {
-    robot.setVelocity(0.06, 0, Math.max(-2.5, Math.min(2.5, 3.5 * angDiff)));
+  if (inScoopContact) {
+    isPushingCube = true;
+    targetGoalX = GX;
+    targetGoalY = GY;
   } else {
-    robot.setVelocity(0.28, 0, Math.max(-1.5, Math.min(1.5, 1.5 * angDiff)));
+    const toGx = GX - tc.x;
+    const toGy = GY - tc.y;
+    const gDist = Math.hypot(toGx, toGy) || 1;
+    const behindDist = 0.22;
+    targetGoalX = tc.x - (toGx / gDist) * behindDist;
+    targetGoalY = tc.y - (toGy / gDist) * behindDist;
+    if (distToCube < 0.38) {
+      const angToCube = Math.atan2(tc.y - Y, tc.x - X);
+      const diff = wrap(angToCube - TH);
+      if (Math.abs(diff) > 0.12) {
+        robot.setVelocity(0.06, 0, Math.max(-2.2, Math.min(2.2, 3.2 * diff)));
+      } else {
+        robot.setVelocity(0.25, 0, Math.max(-1.2, Math.min(1.2, 1.5 * diff)));
+      }
+      return;
+    }
   }
-  M.path = [];
-  if (robot.setPlannedPath) robot.setPlannedPath([]);
-  return;
 }
 
 M.replanTimer = (M.replanTimer || 0) + dt;
-if (M.path.length === 0 || M.replanTimer > 1.0) {
+if (M.path.length === 0 || M.replanTimer > 0.8) {
   const costmap = buildCostmap();
-  const p = astar(costmap, X, Y, goalX, goalY, 0.04) || astar(costmap, X, Y, goalX, goalY, 0.015);
+  const p = astar(costmap, X, Y, targetGoalX, targetGoalY, 0.04) || astar(costmap, X, Y, targetGoalX, targetGoalY, 0.015);
   if (p) {
     M.path = p;
     M.pi = 0;
@@ -634,16 +667,18 @@ if (M.path.length > 0) {
   const pt = M.path[M.pi];
   const targetAng = Math.atan2(pt.y - Y, pt.x - X);
   const angDiff = wrap(targetAng - TH);
-  const distToGoal = Math.hypot(goalX - X, goalY - Y);
-  const spd = Math.max(0.12, Math.min(0.35, distToGoal));
-  const vx = spd * Math.cos(angDiff);
-  const vy = spd * Math.sin(angDiff);
-  const omega = Math.max(-2.5, Math.min(2.5, 3.0 * angDiff));
-  robot.setVelocity(vx, vy, omega);
+  const distToGoal = Math.hypot(targetGoalX - X, targetGoalY - Y);
+  const maxSpd = isPushingCube ? 0.28 : 0.35;
+  const spd = Math.max(0.14, Math.min(maxSpd, distToGoal));
+  if (Math.abs(angDiff) > 0.40) {
+    robot.setVelocity(0.06, 0, Math.max(-2.5, Math.min(2.5, 3.5 * angDiff)));
+  } else {
+    robot.setVelocity(spd * Math.cos(angDiff), 0, Math.max(-2.0, Math.min(2.0, 2.5 * angDiff)));
+  }
 } else {
-  const targetAng = Math.atan2(goalY - Y, goalX - X);
+  const targetAng = Math.atan2(targetGoalY - Y, targetGoalX - X);
   const angDiff = wrap(targetAng - TH);
-  robot.setVelocity(0.15 * Math.cos(angDiff), 0.15 * Math.sin(angDiff), 1.5 * angDiff);
+  robot.setVelocity(0.12, 0, Math.max(-1.8, Math.min(1.8, 2.0 * angDiff)));
 }
 `,
 

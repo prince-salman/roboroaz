@@ -249,16 +249,20 @@ class TelemetryDashboard {
 
     // 1. Update Top-Right Active Badge
     if (this.dom.activeShapeBadge) {
-      const count = cargo.count || 0;
+      const delivered = cargo.deliveredCount || cargo.count || 0;
+      const pushing = cargo.pushingCount || 0;
       const totalMass = (cargo.totalMassKg || 0).toFixed(2);
-      if (count === 3) {
-        this.dom.activeShapeBadge.textContent = `CARGO FULL: 3/3 (${totalMass} kg)`;
+      if (delivered === 3) {
+        this.dom.activeShapeBadge.textContent = `TARGET 3/3 KUBUS (SELESAI)`;
         this.dom.activeShapeBadge.className = "px-2.5 py-1 text-xs font-mono font-bold rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
-      } else if (count > 0) {
-        this.dom.activeShapeBadge.textContent = `CARGO: ${count}/3 (${totalMass} kg)`;
+      } else if (pushing > 0) {
+        this.dom.activeShapeBadge.textContent = `MENDORONG KUBUS (GOAL: ${delivered}/3)`;
+        this.dom.activeShapeBadge.className = "px-2.5 py-1 text-xs font-mono font-bold rounded-md bg-cyan-500/20 text-cyan-400 border border-cyan-500/40";
+      } else if (delivered > 0) {
+        this.dom.activeShapeBadge.textContent = `DI TARGET: ${delivered}/3 KUBUS`;
         this.dom.activeShapeBadge.className = "px-2.5 py-1 text-xs font-mono font-bold rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40";
       } else {
-        this.dom.activeShapeBadge.textContent = `SCOOP EMPTY (0/3)`;
+        this.dom.activeShapeBadge.textContent = `MENCARI KUBUS (0/3)`;
         this.dom.activeShapeBadge.className = "px-2.5 py-1 text-xs font-mono font-bold rounded-md bg-slate-800 text-slate-400 border border-slate-700";
       }
     }
@@ -272,8 +276,8 @@ class TelemetryDashboard {
       let html = `
         <div class="flex flex-col gap-1.5 p-2 bg-slate-900 border border-slate-700 rounded-lg w-44 text-[10px] font-mono">
           <div class="flex justify-between items-center text-slate-300 font-semibold border-b border-slate-800 pb-1">
-            <span>MESH SCOOP</span>
-            <span class="${cargo.hasContact ? 'text-emerald-400' : 'text-slate-500'}">${cargo.hasContact ? 'CONTACT' : 'CLEAR'}</span>
+            <span>SEROKAN PENDORONG</span>
+            <span class="${cargo.hasContact ? 'text-cyan-400' : 'text-slate-500'}">${cargo.hasContact ? 'MENDORONG' : 'SIAP'}</span>
           </div>
 
           <!-- 3 Cargo Slot Boxes -->
@@ -285,22 +289,30 @@ class TelemetryDashboard {
 
       for (let s = 0; s < 3; s++) {
         const cube = cubes[s];
-        const isCaptured = cube && cube.state === "CAPTURED_INSIDE_MESH";
+        const isDelivered = cube && cube.state === "DELIVERED_AT_GOAL";
+        const isPushing = cube && cube.state === "PUSHING_ON_GROUND";
         const color = slotColors[s];
         const name = slotNames[s];
 
-        if (isCaptured) {
+        if (isDelivered) {
           html += `
-            <div class="flex flex-col items-center justify-center p-1 rounded border border-cyan-400/50" style="background-color: ${color}25">
+            <div class="flex flex-col items-center justify-center p-1 rounded border border-emerald-400/50 bg-emerald-500/20">
               <span class="w-3 h-3 rounded-sm shadow-sm" style="background-color: ${color}"></span>
-              <span class="text-[9px] mt-0.5 font-bold" style="color: ${color}">#0${s+1}</span>
+              <span class="text-[9px] mt-0.5 font-bold text-emerald-400">GOAL</span>
+            </div>
+          `;
+        } else if (isPushing) {
+          html += `
+            <div class="flex flex-col items-center justify-center p-1 rounded border border-cyan-400/50 bg-cyan-500/20 animate-pulse">
+              <span class="w-3 h-3 rounded-sm shadow-sm" style="background-color: ${color}"></span>
+              <span class="text-[9px] mt-0.5 font-bold text-cyan-400">PUSH</span>
             </div>
           `;
         } else {
           html += `
-            <div class="flex flex-col items-center justify-center p-1 rounded bg-slate-950/60 border border-slate-800 text-slate-600">
-              <span class="w-3 h-3 rounded-sm border border-dashed border-slate-700"></span>
-              <span class="text-[9px] mt-0.5">SLOT ${s+1}</span>
+            <div class="flex flex-col items-center justify-center p-1 rounded bg-slate-950/60 border border-slate-800 text-slate-500">
+              <span class="w-3 h-3 rounded-sm" style="background-color: ${color}40"></span>
+              <span class="text-[9px] mt-0.5">#0${s+1}</span>
             </div>
           `;
         }
@@ -309,13 +321,13 @@ class TelemetryDashboard {
       html += `
           </div>
 
-          <!-- CoM & Traction Metrics -->
+          <!-- Delivery & Traction Metrics -->
           <div class="flex justify-between text-slate-400 pt-0.5 border-t border-slate-800/80">
-            <span>CoM Shift:</span>
-            <span class="text-cyan-400 font-bold">+${comShiftMm} mm</span>
+            <span>Status Target:</span>
+            <span class="text-cyan-400 font-bold">${cargo.count || 0}/3 Kubus</span>
           </div>
           <div class="flex justify-between text-slate-400">
-            <span>Traction:</span>
+            <span>Traksi Roda:</span>
             <span class="${tractionPct < 80 ? 'text-amber-400' : 'text-emerald-400'} font-bold">${tractionPct}%</span>
           </div>
         </div>
