@@ -256,7 +256,7 @@ class CargoManager {
 
         // Scoop catchment zone:
         // Scoop extends from mount x=0.085 to x=0.225. Inner half-width is 0.075m.
-        const inScoopCavity = (lx >= 0.080 && lx <= 0.215 && Math.abs(ly) <= 0.070);
+        const inScoopCavity = (lx >= 0.070 && lx <= 0.245 && Math.abs(ly) <= 0.075 && capturedCount < 3);
 
         if (inScoopCavity) {
           // Capture the cube!
@@ -270,7 +270,7 @@ class CargoManager {
 
           capturedCount++;
           hasScoopContact = true;
-        } else if (lx >= 0.18 && lx <= 0.26 && Math.abs(ly) <= 0.11) {
+        } else if (lx >= 0.18 && lx <= 0.26 && Math.abs(ly) > 0.075 && Math.abs(ly) <= 0.11) {
           // Contact with outer front scoop prongs: Pushing on ground
           cube.state = "PUSHING_ON_GROUND";
           hasScoopContact = true;
@@ -279,6 +279,11 @@ class CargoManager {
           const pushForce = Math.max(0, robot.vx);
           cube.vx = robot.globalVx * 0.9;
           cube.vy = robot.globalVy * 0.9;
+        } else if (cube.state === "PUSHING_ON_GROUND") {
+          const spd = Math.hypot(cube.vx, cube.vy);
+          if (spd < 0.01 && dist > 0.35) {
+            cube.state = "UNTOUCHED";
+          }
         } else {
           cube.state = "UNTOUCHED";
         }

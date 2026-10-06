@@ -437,98 +437,213 @@ if (!best) {
 drive(best[0], best[1]);
 `,
 
-      default_avoidance: `/**
- * SMORPHI AUTONOMOUS CARGO RETRIEVAL & TRANSPORT
- * ----------------------------------------------------
- * Platform: Single-Block Smorphi with Front Cargo Mesh Scoop
- * Inputs:
- *   - sensors.cargo: { count, totalMassKg, hasContact, frontClearance, cubes: [...] }
- *   - sensors.lidar: 360-deg laser array (.getFront(), .getLeft(), .getRight())
- *   - sensors.imu:   { heading, yaw_rate }
- *   - sensors.pose:  { x, y, theta, comOffsetX, totalMass }
- *   - sensors.target:{ distance, angle, reached }
- *
- * Outputs:
- *   - robot.setVelocity(vx, vy, omega): Set 3-DOF holonomic speed (m/s, rad/s)
- *   - robot.getLoadedMass(): Total mass in kg
- *   - robot.log(message): Output text to simulator console
- */
+      default_avoidance: `const M = memory;
+const W = 5.0;
+const H = 0.165;
+const RES = 0.05;
+const N = Math.round(W / RES);
 
-// Initialize state machine
-if (!memory.initialized) {
-  memory.state = "SEARCH_CARGO";
-  memory.initialized = true;
-  robot.log("=== Smorphi Cargo Retrieval Mission Started ===");
+if (!M.initialized) {
+  M.initialized = true;
+  M.path = [];
+  M.pi = 0;
+  M.replanTimer = 999;
+  M.lastLoggedCount = 0;
+  M.done = false;
+  robot.log("=== Autonomous 3-Cube Cargo Retrieval & Transport ===");
+  robot.log("Target: Ambil seluruh 3 kubus ke serokan lalu antar ke Finish Point");
 }
 
-const frontDist = sensors.lidar.getFront(25);
-const leftDist  = sensors.lidar.getLeft(35);
-const rightDist = sensors.lidar.getRight(35);
-const cargo     = sensors.cargo;
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const X = sensors.pose.x;
+const Y = sensors.pose.y;
+const TH = sensors.imu.headingRad;
+const captured = sensors.cargo.count || 0;
 
-// Cek jika finish point sudah tercapai
-if ((sensors.mission && sensors.mission.completed) || sensors.target.reached) {
+if (captured !== M.lastLoggedCount) {
+  M.lastLoggedCount = captured;
+  robot.log("Kubus berhasil masuk ke serokan! Muatan: " + captured + "/3 (" + sensors.cargo.totalMassKg.toFixed(2) + " kg)");
+  M.path = [];
+  M.replanTimer = 999;
+}
+
+if (sensors.mission && sensors.mission.completed) {
   robot.setVelocity(0, 0, 0);
   return;
 }
 
-// JIKA SEMUA 3 KUBUS SUDAH TERKUMPUL, MENUJU ZONA FINIS (PASSIVE GOAL)
-if (cargo.count >= 3) {
-  if (Math.random() < 0.01) {
-    robot.log(\`Muatan Penuh (3/3) [\${cargo.totalMassKg.toFixed(2)} kg]. Menuju zona akhir...\`);
+const buildCostmap = () => {
+  const dist = new Float32Array(N * N);
+  const CAP = 0.6;
+  for (let j = 0; j < N; j++) {
+    const cy = (j + 0.5) * RES;
+    const wy = Math.min(cy - H - 0.02, W - 0.02 - cy - H);
+    for (let i = 0; i < N; i++) {
+      const cx = (i + 0.5) * RES;
+      dist[j * N + i] = Math.min(CAP, wy, cx - H - 0.02, W - 0.02 - cx - H);
+    }
   }
+  const reach = H + CAP;
+  const obs = sensors.obstacles || [];
+  for (let k = 0; k < obs.length; k++) {
+    const o = obs[k];
+    const i0 = Math.max(0, Math.floor((o.x - reach) / RES));
+    const i1 = Math.min(N - 1, Math.floor((o.x + o.w + reach) / RES));
+    const j0 = Math.max(0, Math.floor((o.y - reach) / RES));
+    const j1 = Math.min(N - 1, Math.floor((o.y + o.h + reach) / RES));
+    for (let j = j0; j <= j1; j++) {
+      const cy = (j + 0.5) * RES;
+      const gy = Math.max(o.y - cy, cy - (o.y + o.h));
+      for (let i = i0; i <= i1; i++) {
+        const cx = (i + 0.5) * RES;
+        const g = Math.max(Math.max(o.x - cx, cx - (o.x + o.w)), gy) - H;
+        const idx = j * N + i;
+        if (g < dist[idx]) dist[idx] = g;
+      }
+    }
+  }
+  return dist;
+};
 
-  // Hindari rintangan sambil bergerak ke arah target finis
-  if (frontDist < 0.55) {
-    const dodge = leftDist > rightDist ? 0.28 : -0.28;
-    robot.setVelocity(-0.05, dodge, 0.6);
-  } else {
-    // Arahkan ke target passive goal
-    const targetAngle = sensors.target.angle;
-    const steer = Math.max(-1.0, Math.min(1.0, targetAngle * 1.5));
-    robot.setVelocity(0.30, 0.0, steer);
+const astar = (costmap, sx, sy, gx, gy, safe) => {
+  const toI = (v) => Math.max(0, Math.min(N - 1, Math.floor(v / RES)));
+  const si = toI(sx), sj = toI(sy);
+  let gi = toI(gx), gj = toI(gy);
+  const startK = sj * N + si;
+  const safeEff = Math.min(safe, costmap[startK] - 0.005);
+  if (costmap[gj * N + gi] < safeEff) {
+    let best = -1, bestD = 1e9;
+    for (let dj = -14; dj <= 14; dj++) {
+      for (let di = -14; di <= 14; di++) {
+        const ni = gi + di, nj = gj + dj;
+        if (ni < 0 || ni >= N || nj < 0 || nj >= N) continue;
+        const nk = nj * N + ni;
+        if (costmap[nk] >= safeEff) {
+          const d = di * di + dj * dj;
+          if (d < bestD) { bestD = d; best = nk; }
+        }
+      }
+    }
+    if (best !== -1) { gi = best % N; gj = Math.floor(best / N); }
   }
+  const targetK = gj * N + gi;
+  const gScore = new Float32Array(N * N).fill(1e9);
+  const cameFrom = new Int32Array(N * N).fill(-1);
+  const inQ = new Uint8Array(N * N);
+  const qK = [startK];
+  const qF = [0];
+  gScore[startK] = 0;
+  inQ[startK] = 1;
+  const dX = [1, -1, 0, 0, 1, -1, 1, -1];
+  const dY = [0, 0, 1, -1, 1, 1, -1, -1];
+  const dC = [1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414];
+  let endK = -1;
+  while (qK.length > 0) {
+    let bi = 0;
+    for (let i = 1; i < qK.length; i++) { if (qF[i] < qF[bi]) bi = i; }
+    const curK = qK.splice(bi, 1)[0];
+    qF.splice(bi, 1);
+    inQ[curK] = 0;
+    if (curK === targetK) { endK = curK; break; }
+    const ci = curK % N, cj = Math.floor(curK / N);
+    const curG = gScore[curK];
+    for (let dir = 0; dir < 8; dir++) {
+      const ni = ci + dX[dir], nj = cj + dY[dir];
+      if (ni < 0 || ni >= N || nj < 0 || nj >= N) continue;
+      const nk = nj * N + ni;
+      if (costmap[nk] < safeEff) continue;
+      const d = costmap[nk];
+      const penalty = d >= 0.4 ? 0 : 25 * Math.pow((0.4 - d) / 0.4, 2);
+      const tentG = curG + dC[dir] * RES * (1 + penalty);
+      if (tentG < gScore[nk]) {
+        cameFrom[nk] = curK;
+        gScore[nk] = tentG;
+        const h = Math.hypot(ni - gi, nj - gj) * RES;
+        const f = tentG + h;
+        if (!inQ[nk]) {
+          qK.push(nk);
+          qF.push(f);
+          inQ[nk] = 1;
+        }
+      }
+    }
+  }
+  if (endK === -1) return null;
+  const raw = [];
+  let curr = endK;
+  while (curr !== -1) {
+    raw.push({ x: (curr % N + 0.5) * RES, y: (Math.floor(curr / N) + 0.5) * RES });
+    curr = cameFrom[curr];
+  }
+  raw.reverse();
+  return raw;
+};
+
+let goalX = sensors.target.x, goalY = sensors.target.y, isScoopMode = false;
+const uncollected = (sensors.cargo.cubes || []).filter(c => c.state !== "CAPTURED_INSIDE_MESH");
+
+if (uncollected.length > 0 && captured < 3) {
+  uncollected.sort((a, b) => Math.hypot(a.x - X, a.y - Y) - Math.hypot(b.x - X, b.y - Y));
+  const tc = uncollected[0];
+  goalX = tc.x;
+  goalY = tc.y;
+  const distToCube = Math.hypot(goalX - X, goalY - Y);
+  if (distToCube < 0.38) {
+    isScoopMode = true;
+  }
+} else {
+  goalX = sensors.target.x;
+  goalY = sensors.target.y;
+  if (!M.allLogged) {
+    M.allLogged = true;
+    robot.log("Seluruh 3 kubus kargo lengkap di serokan! Mengantar muatan ke Finish Point...");
+  }
+}
+
+if (robot.setGoalMarker) robot.setGoalMarker(goalX, goalY);
+
+if (isScoopMode) {
+  const targetAng = Math.atan2(goalY - Y, goalX - X);
+  const angDiff = wrap(targetAng - TH);
+  if (Math.abs(angDiff) > 0.15) {
+    robot.setVelocity(0.06, 0, Math.max(-2.5, Math.min(2.5, 3.5 * angDiff)));
+  } else {
+    robot.setVelocity(0.28, 0, Math.max(-1.5, Math.min(1.5, 1.5 * angDiff)));
+  }
+  M.path = [];
+  if (robot.setPlannedPath) robot.setPlannedPath([]);
   return;
 }
 
-// STATE 1: PENCARIAN & PENDEKATAN KUBUS (SEARCH & APPROACH)
-if (memory.state === "SEARCH_CARGO") {
-  // Cari kubus terdekat yang belum terjaring
-  const target = cargo.cubes.find(c => c.state === "UNTOUCHED");
-
-  if (target && target.dist < 2.0) {
-    // Hadapkan robot langsung ke arah kubus
-    const headingError = target.relAngle;
-    const turnSpeed = Math.max(-1.5, Math.min(1.5, headingError * 2.2));
-
-    // Bergerak mendekat dengan kecepatan proporsional
-    const fwdSpeed = target.dist > 0.40 ? 0.30 : 0.15;
-    robot.setVelocity(fwdSpeed, 0.0, turnSpeed);
-
-    if (target.dist < 0.25) {
-      memory.state = "SCOOP_ENGAGE";
-      robot.log(\`Mendekati kubus #\${target.id} (\${target.color}), menyapukan sekat...\`);
-    }
-  } else {
-    // Navigasi jelajah lorong arena
-    if (frontDist < 0.60) {
-      const dodge = leftDist > rightDist ? 0.25 : -0.25;
-      robot.setVelocity(0.0, dodge, 0.8 * Math.sign(dodge));
-    } else {
-      robot.setVelocity(0.35, 0.0, 0.0);
-    }
+M.replanTimer = (M.replanTimer || 0) + dt;
+if (M.path.length === 0 || M.replanTimer > 1.0) {
+  const costmap = buildCostmap();
+  const p = astar(costmap, X, Y, goalX, goalY, 0.04) || astar(costmap, X, Y, goalX, goalY, 0.015);
+  if (p) {
+    M.path = p;
+    M.pi = 0;
+    if (robot.setPlannedPath) robot.setPlannedPath(p);
   }
+  M.replanTimer = 0;
 }
 
-// STATE 2: MENYAPU & MENGUNCI KUBUS KE DALAM SEKAT JARING (SCOOP ENGAGE)
-else if (memory.state === "SCOOP_ENGAGE") {
-  // Dorong lurus ke depan agar kubus melewati bibir penahan bawah sekat
-  robot.setVelocity(0.20, 0.0, 0.0);
-
-  if (cargo.hasContact || cargo.frontClearance < 0.05) {
-    robot.log(\`Kubus berhasil ditampung! Beban saat ini: \${cargo.totalMassKg.toFixed(2)} kg (\${cargo.count}/3)\`);
-    memory.state = "SEARCH_CARGO";
+if (M.path.length > 0) {
+  while (M.pi < M.path.length - 1 && Math.hypot(M.path[M.pi].x - X, M.path[M.pi].y - Y) < 0.20) {
+    M.pi++;
   }
+  const pt = M.path[M.pi];
+  const targetAng = Math.atan2(pt.y - Y, pt.x - X);
+  const angDiff = wrap(targetAng - TH);
+  const distToGoal = Math.hypot(goalX - X, goalY - Y);
+  const spd = Math.max(0.12, Math.min(0.35, distToGoal));
+  const vx = spd * Math.cos(angDiff);
+  const vy = spd * Math.sin(angDiff);
+  const omega = Math.max(-2.5, Math.min(2.5, 3.0 * angDiff));
+  robot.setVelocity(vx, vy, omega);
+} else {
+  const targetAng = Math.atan2(goalY - Y, goalX - X);
+  const angDiff = wrap(targetAng - TH);
+  robot.setVelocity(0.15 * Math.cos(angDiff), 0.15 * Math.sin(angDiff), 1.5 * angDiff);
 }
 `,
 
@@ -621,6 +736,7 @@ const steer = Kp * error + Kd * derivative;
 robot.setVelocity(0.28, 0.0, -steer);
 `,
     };
+    this.presets.cargo_retrieval = this.presets.default_avoidance;
   }
 
   /**

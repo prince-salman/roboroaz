@@ -90,7 +90,7 @@ class SmorphiApp {
       });
 
       // Set default script from codeEngine
-      this.editor.setValue(this.codeEngine.presets.whiteboard_waypoints || this.codeEngine.presets.default_avoidance, -1);
+      this.editor.setValue(this.codeEngine.presets.default_avoidance || this.codeEngine.presets.whiteboard_waypoints, -1);
     } else {
       console.warn("[SmorphiApp] Ace Editor not loaded, falling back to textarea");
     }
@@ -185,8 +185,8 @@ class SmorphiApp {
     if (btnResetCode) {
       btnResetCode.addEventListener("click", () => {
         if (this.editor) {
-          const val = presetSelect ? presetSelect.value : "whiteboard_waypoints";
-          const code = this.codeEngine.presets[val] || this.codeEngine.presets.whiteboard_waypoints;
+          const val = presetSelect ? presetSelect.value : "default_avoidance";
+          const code = this.codeEngine.presets[val] || this.codeEngine.presets.default_avoidance;
           this.editor.setValue(code, -1);
           this.codeEngine.compileScript(this.editor.getValue());
           this.codeEngine.log(`Editor reset to ${val} template.`);
