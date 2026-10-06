@@ -146,42 +146,98 @@ class CargoManager {
   }
 
   /**
-   * Spawns cubes deterministically at safe open waypoints along the verified A* path
-   * without altering the maze layout or obstacle generator.
+   * Spawns cubes scattered across distinct regions of the arena
+   * so the robot must navigate through obstacles to find and deliver each one.
    * @param {ArenaMap} map
    */
   spawnCubes(map) {
-    const path = (map && map.reachablePath && map.reachablePath.length > 5) ? map.reachablePath : null;
+    if (!map) return;
 
-    if (path) {
-      const len = path.length;
-      // Waypoint indices along path
-      const idx1 = Math.floor(len * 0.25);
-      const idx2 = Math.floor(len * 0.55);
-      const idx3 = Math.floor(len * 0.80);
+    const W = map.width || 5.0;
+    const H = map.height || 5.0;
+    const RES = 0.10;
+    const N = Math.round(W / RES);
+    const robotR = 0.165;
+    const clearanceReq = 0.04;
 
-      const p1 = path[idx1];
-      const p2 = path[idx2];
-      const p3 = path[idx3];
-
-      this.cubes[0].reset(p1.x, p1.y);
-      this.cubes[1].reset(p2.x, p2.y);
-      this.cubes[2].reset(p3.x, p3.y);
-    } else {
-      // Fallback default safe points
-      const fallbacks = [
-        { x: 1.8, y: 1.4 },
-        { x: 2.5, y: 3.2 },
-        { x: 3.8, y: 2.2 },
-      ];
-
-      for (let i = 0; i < 3; i++) {
-        let pt = fallbacks[i];
-        // Ensure within bounds
-        pt.x = Math.max(0.5, Math.min(map.width - 0.5, pt.x));
-        pt.y = Math.max(0.5, Math.min(map.height - 0.5, pt.y));
-        this.cubes[i].reset(pt.x, pt.y);
+    const distMap = new Float32Array(N * N);
+    for (let j = 0; j < N; j++) {
+      const cy = (j + 0.5) * RES;
+      const wy = Math.min(cy - robotR, H - cy - robotR);
+      for (let i = 0; i < N; i++) {
+        const cx = (i + 0.5) * RES;
+        let d = Math.min(wy, cx - robotR, W - cx - robotR);
+        if (map.obstacles) {
+          for (const obs of map.obstacles) {
+            const nx = Math.max(obs.x, Math.min(cx, obs.x + obs.w));
+            const ny = Math.max(obs.y, Math.min(cy, obs.y + obs.h));
+            const od = Math.hypot(cx - nx, cy - ny) - robotR;
+            if (od < d) d = od;
+          }
+        }
+        distMap[j * N + i] = d;
       }
+    }
+
+    const regions = [
+      { xMin: 0.8, xMax: 2.2, yMin: 1.0, yMax: 3.2 },
+      { xMin: 2.8, xMax: 4.2, yMin: 1.0, yMax: 3.0 },
+      { xMin: 0.8, xMax: 3.0, yMin: 3.2, yMax: 4.3 },
+    ];
+
+    const chosenPoints = [];
+    const spawnPt = map.spawn || { x: 2.5, y: 0.6 };
+    const goalPt = map.goal || { x: 4.2, y: 4.2 };
+
+    for (let r = 0; r < regions.length; r++) {
+      const reg = regions[r];
+      const candidates = [];
+      const i0 = Math.max(0, Math.floor(reg.xMin / RES));
+      const i1 = Math.min(N - 1, Math.floor(reg.xMax / RES));
+      const j0 = Math.max(0, Math.floor(reg.yMin / RES));
+      const j1 = Math.min(N - 1, Math.floor(reg.yMax / RES));
+
+      for (let j = j0; j <= j1; j++) {
+        const cy = (j + 0.5) * RES;
+        for (let i = i0; i <= i1; i++) {
+          const cx = (i + 0.5) * RES;
+          const d = distMap[j * N + i];
+          if (d < clearanceReq) continue;
+          if (Math.hypot(cx - spawnPt.x, cy - spawnPt.y) < 0.70) continue;
+          if (Math.hypot(cx - goalPt.x, cy - goalPt.y) < 0.90) continue;
+
+          let tooClose = false;
+          for (const p of chosenPoints) {
+            if (Math.hypot(cx - p.x, cy - p.y) < 1.1) {
+              tooClose = true;
+              break;
+            }
+          }
+          if (tooClose) continue;
+
+          candidates.push({ x: cx, y: cy, clearance: d });
+        }
+      }
+
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => b.clearance - a.clearance);
+        const topN = Math.max(1, Math.min(10, Math.floor(candidates.length * 0.25)));
+        const picked = candidates[Math.floor(Math.random() * topN)];
+        chosenPoints.push(picked);
+      } else {
+        const path = map.reachablePath || [];
+        const fallbackIdx = Math.floor(path.length * (0.25 + r * 0.25));
+        if (path[fallbackIdx]) {
+          chosenPoints.push({ x: path[fallbackIdx].x, y: path[fallbackIdx].y, clearance: 0.1 });
+        } else {
+          chosenPoints.push({ x: 1.5 + r * 1.0, y: 2.0, clearance: 0.1 });
+        }
+      }
+    }
+
+    for (let i = 0; i < 3; i++) {
+      const pt = chosenPoints[i] || { x: 1.5 + i * 1.0, y: 2.0 };
+      this.cubes[i].reset(pt.x, pt.y);
     }
   }
 
