@@ -600,7 +600,7 @@ if (uncollected.length > 0 && captured < 3) {
   }
 }
 
-if (robot.setGoalMarker) robot.setGoalMarker(goalX, goalY);
+if (robot.setGoalMarker) robot.setGoalMarker(sensors.target.x, sensors.target.y);
 
 if (isScoopMode) {
   const targetAng = Math.atan2(goalY - Y, goalX - X);

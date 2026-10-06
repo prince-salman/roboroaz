@@ -638,10 +638,9 @@ class Viewport3D {
     // 6. Update Trajectory Trail
     this.updateTrajectoryVisualization(robot.trajectory);
 
-    // 7. Update Goal Beacon
-    if (this.goalGroup) {
-      const g = robot.debugGoal || this.map.goal;
-      this.goalGroup.position.set(g.x, 0, g.y);
+    // 7. Update Goal Beacon (Tanda Kuning / Target Finish Point)
+    if (this.goalGroup && this.map && this.map.goal) {
+      this.goalGroup.position.set(this.map.goal.x, 0, this.map.goal.y);
       if (isGoalReached) {
         this.goalBeacon.rotation.y += 4.5 * dt;
         this.goalBeacon.rotation.x += 2.0 * dt;
