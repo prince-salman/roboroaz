@@ -274,7 +274,7 @@ class TelemetryDashboard {
       const tractionPct = Math.round((robot.tractionMultiplier || 1.0) * 100);
 
       let html = `
-        <div class="flex flex-col gap-1.5 p-2 bg-slate-900 border border-slate-700 rounded-lg w-44 text-[10px] font-mono">
+        <div class="flex flex-col gap-1.5 p-2 bg-slate-900 border border-slate-700 rounded-lg w-48 text-[10px] font-mono">
           <div class="flex justify-between items-center text-slate-300 font-semibold border-b border-slate-800 pb-1">
             <span>SEROKAN PENDORONG</span>
             <span class="${cargo.hasContact ? 'text-cyan-400' : 'text-slate-500'}">${cargo.hasContact ? 'MENDORONG' : 'SIAP'}</span>
@@ -291,6 +291,7 @@ class TelemetryDashboard {
         const cube = cubes[s];
         const isDelivered = cube && cube.state === "DELIVERED_AT_GOAL";
         const isPushing = cube && cube.state === "PUSHING_ON_GROUND";
+        const isTarget = cube && cube.isTarget;
         const color = slotColors[s];
         const name = slotNames[s];
 
@@ -299,6 +300,7 @@ class TelemetryDashboard {
             <div class="flex flex-col items-center justify-center p-1 rounded border border-emerald-400/50 bg-emerald-500/20">
               <span class="w-3 h-3 rounded-sm shadow-sm" style="background-color: ${color}"></span>
               <span class="text-[9px] mt-0.5 font-bold text-emerald-400">GOAL</span>
+              <span class="text-[7.5px] text-emerald-300 font-mono">SELESAI</span>
             </div>
           `;
         } else if (isPushing) {
@@ -306,13 +308,23 @@ class TelemetryDashboard {
             <div class="flex flex-col items-center justify-center p-1 rounded border border-cyan-400/50 bg-cyan-500/20 animate-pulse">
               <span class="w-3 h-3 rounded-sm shadow-sm" style="background-color: ${color}"></span>
               <span class="text-[9px] mt-0.5 font-bold text-cyan-400">PUSH</span>
+              <span class="text-[7.5px] text-cyan-300 font-mono">DORONG</span>
+            </div>
+          `;
+        } else if (isTarget) {
+          html += `
+            <div class="flex flex-col items-center justify-center p-1 rounded border border-amber-400/80 bg-amber-500/25 animate-pulse shadow-sm shadow-amber-500/30">
+              <span class="w-3 h-3 rounded-sm shadow-sm" style="background-color: ${color}"></span>
+              <span class="text-[9px] mt-0.5 font-bold text-amber-300">TARGET</span>
+              <span class="text-[7.5px] text-amber-200 font-mono">(${cube.x.toFixed(1)},${cube.y.toFixed(1)})</span>
             </div>
           `;
         } else {
           html += `
             <div class="flex flex-col items-center justify-center p-1 rounded bg-slate-950/60 border border-slate-800 text-slate-500">
-              <span class="w-3 h-3 rounded-sm" style="background-color: ${color}40"></span>
-              <span class="text-[9px] mt-0.5">#0${s+1}</span>
+              <span class="w-3 h-3 rounded-sm opacity-40" style="background-color: ${color}40"></span>
+              <span class="text-[9px] mt-0.5">🔒 #0${s+1}</span>
+              <span class="text-[7.5px] text-slate-600 font-mono">LOCKED</span>
             </div>
           `;
         }
@@ -321,9 +333,13 @@ class TelemetryDashboard {
       html += `
           </div>
 
-          <!-- Delivery & Traction Metrics -->
+          <!-- Target Coordinates & Delivery Metrics -->
           <div class="flex justify-between text-slate-400 pt-0.5 border-t border-slate-800/80">
-            <span>Status Target:</span>
+            <span>Target:</span>
+            <span class="text-amber-300 font-mono font-bold">${cargo.activeTarget ? `#0${cargo.activeTarget.id} (${cargo.activeTarget.x.toFixed(2)}, ${cargo.activeTarget.y.toFixed(2)})` : 'Selesai 3/3'}</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Terkirim:</span>
             <span class="text-cyan-400 font-bold">${cargo.count || 0}/3 Kubus</span>
           </div>
           <div class="flex justify-between text-slate-400">

@@ -453,6 +453,10 @@ if (!M.initialized) {
   M.backTimer = 0;
   robot.log("=== Autonomous 3-Cube Cargo Pusher ===");
   robot.log("Misi: Mendorong seluruh 3 kubus ke tanda kuning target");
+  const initTarget = (sensors.cargo && sensors.cargo.activeTarget) || (sensors.cargo && sensors.cargo.cubes && sensors.cargo.cubes[0]);
+  if (initTarget) {
+    robot.log("Menerima koordinat target awal #0" + initTarget.id + " (" + initTarget.name + "): X=" + initTarget.x.toFixed(2) + ", Y=" + initTarget.y.toFixed(2));
+  }
 }
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -465,6 +469,10 @@ const GY = sensors.target.y;
 if (robot.setGoalMarker) robot.setGoalMarker(GX, GY);
 
 if (sensors.mission && sensors.mission.completed) {
+  if (!M.completionLogged) {
+    M.completionLogged = true;
+    robot.log("Misi Selesai: Seluruh 3 kubus berhasil didorong ke tanda kuning target!");
+  }
   robot.setVelocity(0, 0, 0);
   return;
 }
@@ -487,12 +495,18 @@ const deliveredCount = 3 - undelivered.length;
 
 if (deliveredCount !== M.lastDelivered) {
   M.lastDelivered = deliveredCount;
-  robot.log("Kubus berhasil didorong ke tanda kuning! Terkirim: " + deliveredCount + "/3");
+  robot.log("Kubus #" + deliveredCount + " berhasil didorong ke tanda kuning! Terkirim: " + deliveredCount + "/3");
   if (deliveredCount < 3) {
+    const nextTarget = (sensors.cargo && sensors.cargo.activeTarget) || (sensors.cargo && sensors.cargo.cubes && sensors.cargo.cubes.find(c => c.id === deliveredCount + 1));
+    if (nextTarget) {
+      robot.log("Menerima koordinat target berikutnya #0" + nextTarget.id + " (" + nextTarget.name + "): X=" + nextTarget.x.toFixed(2) + ", Y=" + nextTarget.y.toFixed(2));
+    }
     M.state = "BACKING_UP";
     M.backTimer = 0.8;
     robot.setVelocity(-0.25, 0, 0);
     return;
+  } else {
+    robot.log("Misi Selesai: Seluruh 3 kubus berhasil dikirim ke tanda kuning!");
   }
 }
 
@@ -615,8 +629,9 @@ if (undelivered.length === 0) {
     return;
   }
 } else {
-  undelivered.sort((a, b) => Math.hypot(a.x - X, a.y - Y) - Math.hypot(b.x - X, b.y - Y));
-  const tc = undelivered[0];
+  undelivered.sort((a, b) => a.id - b.id);
+  const targetId = (sensors.cargo && sensors.cargo.activeTarget) ? sensors.cargo.activeTarget.id : (deliveredCount + 1);
+  const tc = undelivered.find(c => c.id === targetId) || undelivered[0];
   const distToCube = Math.hypot(tc.x - X, tc.y - Y);
   const cosT = Math.cos(TH);
   const sinT = Math.sin(TH);
@@ -848,7 +863,14 @@ robot.setVelocity(0.28, 0.0, -steer);
    */
   log(message, type = "info") {
     const now = performance.now();
-    if (type === "user" && now - this.lastLogTime < 50) return;
+    if (type === "user") {
+      if (!this._logWindowStart || now - this._logWindowStart > 100) {
+        this._logWindowStart = now;
+        this._logCountWindow = 0;
+      }
+      this._logCountWindow++;
+      if (this._logCountWindow > 10) return;
+    }
     this.lastLogTime = now;
 
     const entry = {

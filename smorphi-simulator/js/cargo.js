@@ -365,6 +365,34 @@ class CargoManager {
     const cosT = Math.cos(robot.theta);
     const sinT = Math.sin(robot.theta);
 
+    // Sequential waypoint dispatch: Find next undelivered cube by ID order (1 -> 2 -> 3)
+    const activeCube = this.cubes.find(c => c.state !== "DELIVERED_AT_GOAL") || null;
+    let activeTarget = null;
+    if (activeCube) {
+      const dx = activeCube.x - robot.x;
+      const dy = activeCube.y - robot.y;
+      const dist = Math.hypot(dx, dy);
+      const targetAngle = Math.atan2(dy, dx);
+      let relAngle = targetAngle - robot.theta;
+      while (relAngle > Math.PI) relAngle -= 2 * Math.PI;
+      while (relAngle < -Math.PI) relAngle += 2 * Math.PI;
+
+      activeTarget = {
+        id: activeCube.id,
+        name: activeCube.name,
+        color: activeCube.name,
+        hex: activeCube.hex,
+        css: activeCube.css,
+        label: activeCube.label,
+        state: activeCube.state,
+        x: activeCube.x,
+        y: activeCube.y,
+        dist: dist,
+        relAngle: relAngle,
+        relAngleDeg: (relAngle * 180) / Math.PI,
+      };
+    }
+
     const cubeDetails = this.cubes.map(cube => {
       const dx = cube.x - robot.x;
       const dy = cube.y - robot.y;
@@ -373,6 +401,9 @@ class CargoManager {
       let relAngle = targetAngle - robot.theta;
       while (relAngle > Math.PI) relAngle -= 2 * Math.PI;
       while (relAngle < -Math.PI) relAngle += 2 * Math.PI;
+
+      const isTarget = activeCube && (cube.id === activeCube.id);
+      const isUnlocked = activeCube ? (cube.id <= activeCube.id) : true;
 
       return {
         id: cube.id,
@@ -383,6 +414,8 @@ class CargoManager {
         label: cube.label,
         state: cube.state,
         isDelivered: cube.state === "DELIVERED_AT_GOAL",
+        isTarget: isTarget,
+        isUnlocked: isUnlocked,
         dist: dist,
         relAngle: relAngle,
         relAngleDeg: (relAngle * 180) / Math.PI,
@@ -398,6 +431,9 @@ class CargoManager {
       count: deliveredCount,
       deliveredCount: deliveredCount,
       pushingCount: pushingCount,
+      activeTarget: activeTarget,
+      targetCube: activeTarget,
+      nextTargetId: activeTarget ? activeTarget.id : null,
       totalMassKg: deliveredCount * CONFIG.CARGO.MASS,
       loadPercent: (deliveredCount / CONFIG.CARGO.COUNT) * 100,
       isFull: deliveredCount >= CONFIG.CARGO.COUNT,

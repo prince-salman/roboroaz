@@ -440,6 +440,16 @@ class Viewport3D {
       badge.position.y = size * 0.47 + 0.002;
       cubeGroup.add(badge);
 
+      // Floating glowing target beacon indicator (inverted pyramid pointer)
+      const beaconGeo = new THREE.ConeGeometry(0.022, 0.045, 4);
+      const beaconMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+      const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+      beacon.rotation.x = Math.PI;
+      beacon.position.y = size + 0.035;
+      beacon.visible = false;
+      cubeGroup.add(beacon);
+      cubeGroup.targetBeacon = beacon;
+
       cubeGroup.position.set(2.5, size / 2, 2.5);
       this.scene.add(cubeGroup);
       this.cargoMeshes.push(cubeGroup);
@@ -647,6 +657,7 @@ class Viewport3D {
 
     // 4. Update 3 Cargo Cubes
     if (cargoManager && cargoManager.cubes) {
+      const activeTargetId = (sensorSuite && sensorSuite.cargo && sensorSuite.cargo.activeTarget) ? sensorSuite.cargo.activeTarget.id : null;
       for (let i = 0; i < 3; i++) {
         const cube = cargoManager.cubes[i];
         if (this.cargoMeshes[i]) {
@@ -656,6 +667,15 @@ class Viewport3D {
           this.cargoMeshes[i].position.set(safeX, (cube.size || 0.09) / 2, safeY);
           this.cargoMeshes[i].rotation.y = -safeTheta;
           this.cargoMeshes[i].visible = true;
+
+          if (this.cargoMeshes[i].targetBeacon) {
+            const isTarget = (cube.id === activeTargetId) && (cube.state !== "DELIVERED_AT_GOAL");
+            this.cargoMeshes[i].targetBeacon.visible = isTarget;
+            if (isTarget) {
+              this.cargoMeshes[i].targetBeacon.rotation.y += 3.5 * dt;
+              this.cargoMeshes[i].targetBeacon.position.y = (cube.size || 0.09) + 0.035 + Math.sin(Date.now() * 0.008) * 0.012;
+            }
+          }
         }
       }
     }
