@@ -698,12 +698,7 @@ if (M.path.length > 0) {
 `,
 
       // 2. Goal Seeking with Artificial Potential Field
-      goal_seeker: `/**
- * ROBO-ROARZ POTENTIAL FIELD GOAL SEEKER
- * Platform: Single-Block Smorphi
- */
-
-if (!memory.init) {
+      goal_seeker: `if (!memory.init) {
   memory.init = true;
   robot.log("Target Seeking Navigator Started!");
 }
@@ -719,12 +714,10 @@ if (target.reached) {
   return;
 }
 
-// 1. Attractive force towards target
 let targetAngle = target.angle;
 let attractiveVx = Math.cos(targetAngle) * 0.32;
 let attractiveVy = Math.sin(targetAngle) * 0.32;
 
-// 2. Repulsive force from obstacles
 let repulseVx = 0;
 let repulseVy = 0;
 
@@ -746,18 +739,12 @@ robot.setVelocity(cmdVx, cmdVy, cmdOmega);
 `,
 
       // 3. Mecanum Holonomic Orbit (No-Turn)
-      holonomic_drift: `/**
- * MECANUM HOLONOMIC ORBIT DEMO
- * Demonstrates 3-DOF lateral strafing without altering robot heading.
- */
-
-if (!memory.timer) memory.timer = 0;
+      holonomic_drift: `if (!memory.timer) memory.timer = 0;
 memory.timer += dt;
 
 const phase = (memory.timer % 4.0) / 4.0;
 const angle = phase * Math.PI * 2;
 
-// Move along a circle in local frame without rotating
 const vx = Math.cos(angle) * 0.30;
 const vy = Math.sin(angle) * 0.30;
 
@@ -765,12 +752,7 @@ robot.setVelocity(vx, vy, 0.0);
 `,
 
       // 4. PID Wall Follower
-      wall_follower: `/**
- * PID WALL FOLLOWER (Single-Block Smorphi)
- * Maintains constant 0.35m distance from the right wall.
- */
-
-const targetDist = 0.35;
+      wall_follower: `const targetDist = 0.35;
 const currentDist = sensors.lidar.getRight(30);
 
 if (!memory.prevError) memory.prevError = 0;
