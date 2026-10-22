@@ -425,77 +425,89 @@ class Viewport3D {
   }
 
   /**
-   * Build the Front Competition Yellow 3D-Printed Scoop with Dual Blue IR Sensor Modules
-   * (Matching Physical Assembly in Tutorial Part 4, 5, 6)
+   * Build the Front Competition Yellow 3D-Printed U-Frame Pusher Bumper with Dual Blue IR Sensors
+   * Strictly Ground-Pushing Only (No bottom plate / 0% lifting - per RoboRoarZ rules)
    */
   buildCargoScoop() {
-    const scoopGroup = new THREE.Group();
+    const bumperGroup = new THREE.Group();
 
     const mountX = CONFIG.SCOOP ? CONFIG.SCOOP.MOUNT_X : 0.085;
     const scoopLen = CONFIG.SCOOP ? CONFIG.SCOOP.LENGTH : 0.140;
     const outerW = CONFIG.SCOOP ? CONFIG.SCOOP.OUTER_WIDTH : 0.190;
-    const scoopH = CONFIG.SCOOP ? CONFIG.SCOOP.HEIGHT : 0.085;
-    const wallThick = CONFIG.SCOOP ? CONFIG.SCOOP.WALL_THICKNESS : 0.012;
+    const scoopH = CONFIG.SCOOP ? CONFIG.SCOOP.HEIGHT : 0.080;
+    const wallThick = CONFIG.SCOOP ? CONFIG.SCOOP.WALL_THICKNESS : 0.014;
 
     const centerX = mountX + scoopLen / 2;
     const halfOuterW = outerW / 2;
+    const groundClearance = 0.008; // 8mm clearance above floor: strictly NO bottom floor / NO lifting
 
     // Competition Bright Yellow 3D-Printed PLA Material (from Videos Part 4, 5, 6)
-    const scoopYellowMat = new THREE.MeshStandardMaterial({
+    const bumperYellowMat = new THREE.MeshStandardMaterial({
       color: 0xfacc15,
       roughness: 0.38,
       metalness: 0.12,
     });
 
-    const scoopAccentMat = new THREE.MeshStandardMaterial({
+    const bumperAccentMat = new THREE.MeshStandardMaterial({
       color: 0xeab308,
       roughness: 0.3,
       metalness: 0.2,
     });
 
-    // 1. Thin Bottom Lip / Base Plate
-    const lipGeo = new THREE.BoxGeometry(scoopLen, 0.004, outerW - 0.01);
-    const lipMesh = new THREE.Mesh(lipGeo, scoopYellowMat);
-    lipMesh.position.set(centerX, 0.006, 0);
-    lipMesh.castShadow = true;
-    lipMesh.receiveShadow = true;
-    scoopGroup.add(lipMesh);
+    // 1. Left Pusher Arm Prong (In Three.js Left is -Z) - Completely open bottom
+    const sideArmGeo = new THREE.BoxGeometry(scoopLen, scoopH, wallThick);
+    const leftArm = new THREE.Mesh(sideArmGeo, bumperYellowMat);
+    leftArm.position.set(centerX, groundClearance + scoopH / 2, -(halfOuterW - wallThick / 2));
+    leftArm.castShadow = true;
+    bumperGroup.add(leftArm);
 
-    // 2. Left Yellow Wall Prong (In Three.js Left is -Z)
-    const sideWallGeo = new THREE.BoxGeometry(scoopLen, scoopH, wallThick);
-    const leftWall = new THREE.Mesh(sideWallGeo, scoopYellowMat);
-    leftWall.position.set(centerX, scoopH / 2 + 0.006, -(halfOuterW - wallThick / 2));
-    leftWall.castShadow = true;
-    scoopGroup.add(leftWall);
+    const leftTopRim = new THREE.Mesh(new THREE.BoxGeometry(scoopLen, 0.005, wallThick + 0.002), bumperAccentMat);
+    leftTopRim.position.set(centerX, groundClearance + scoopH, -(halfOuterW - wallThick / 2));
+    bumperGroup.add(leftTopRim);
 
-    const leftRimGeo = new THREE.BoxGeometry(scoopLen, 0.006, wallThick + 0.002);
-    const leftRim = new THREE.Mesh(leftRimGeo, scoopAccentMat);
-    leftRim.position.set(centerX, scoopH + 0.006, -(halfOuterW - wallThick / 2));
-    scoopGroup.add(leftRim);
+    // 2. Right Pusher Arm Prong (+Z) - Completely open bottom
+    const rightArm = new THREE.Mesh(sideArmGeo, bumperYellowMat);
+    rightArm.position.set(centerX, groundClearance + scoopH / 2, (halfOuterW - wallThick / 2));
+    rightArm.castShadow = true;
+    bumperGroup.add(rightArm);
 
-    // 3. Right Yellow Wall Prong (+Z)
-    const rightWall = new THREE.Mesh(sideWallGeo, scoopYellowMat);
-    rightWall.position.set(centerX, scoopH / 2 + 0.006, (halfOuterW - wallThick / 2));
-    rightWall.castShadow = true;
-    scoopGroup.add(rightWall);
+    const rightTopRim = new THREE.Mesh(new THREE.BoxGeometry(scoopLen, 0.005, wallThick + 0.002), bumperAccentMat);
+    rightTopRim.position.set(centerX, groundClearance + scoopH, (halfOuterW - wallThick / 2));
+    bumperGroup.add(rightTopRim);
 
-    const rightRim = new THREE.Mesh(leftRimGeo, scoopAccentMat);
-    rightRim.position.set(centerX, scoopH + 0.006, (halfOuterW - wallThick / 2));
-    scoopGroup.add(rightRim);
+    // 3. Back Pushing Plate against robot front chassis (Pushes cube forward on ground)
+    const backPlateGeo = new THREE.BoxGeometry(wallThick, scoopH, outerW);
+    const backPlate = new THREE.Mesh(backPlateGeo, bumperYellowMat);
+    backPlate.position.set(mountX + wallThick / 2, groundClearance + scoopH / 2, 0);
+    backPlate.castShadow = true;
+    bumperGroup.add(backPlate);
 
-    // 4. Back Wall against robot front chassis
-    const backWallGeo = new THREE.BoxGeometry(wallThick, scoopH, outerW);
-    const backWall = new THREE.Mesh(backWallGeo, scoopYellowMat);
-    backWall.position.set(mountX + wallThick / 2, scoopH / 2 + 0.006, 0);
-    backWall.castShadow = true;
-    scoopGroup.add(backWall);
+    // Rubberized contact push pad on inner face of backplate
+    const pushPadGeo = new THREE.BoxGeometry(0.005, scoopH * 0.75, outerW * 0.85);
+    const pushPadMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9 });
+    const pushPad = new THREE.Mesh(pushPadGeo, pushPadMat);
+    pushPad.position.set(mountX + wallThick + 0.0025, groundClearance + scoopH / 2, 0);
+    bumperGroup.add(pushPad);
 
-    // Tactile contact sensor plate on inner back wall
-    const sensorPlateGeo = new THREE.BoxGeometry(0.004, 0.025, 0.08);
+    // Tactile contact sensor plate for contact feedback
+    const sensorPlateGeo = new THREE.BoxGeometry(0.003, 0.020, 0.06);
     const sensorPlateMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
     const sensorPlate = new THREE.Mesh(sensorPlateGeo, sensorPlateMat);
-    sensorPlate.position.set(mountX + wallThick + 0.002, 0.035, 0);
-    scoopGroup.add(sensorPlate);
+    sensorPlate.position.set(mountX + wallThick + 0.005, groundClearance + scoopH / 2, 0);
+    bumperGroup.add(sensorPlate);
+
+    // 4. Angled Front Funnel Wings (Guides cube into center while pushing on ground)
+    const wingLen = 0.025;
+    const wingGeo = new THREE.BoxGeometry(wingLen, scoopH, wallThick);
+    const leftWing = new THREE.Mesh(wingGeo, bumperYellowMat);
+    leftWing.position.set(mountX + scoopLen + wingLen * 0.35, groundClearance + scoopH / 2, -(halfOuterW + 0.008));
+    leftWing.rotation.y = -Math.PI / 6;
+    bumperGroup.add(leftWing);
+
+    const rightWing = new THREE.Mesh(wingGeo, bumperYellowMat);
+    rightWing.position.set(mountX + scoopLen + wingLen * 0.35, groundClearance + scoopH / 2, +(halfOuterW + 0.008));
+    rightWing.rotation.y = Math.PI / 6;
+    bumperGroup.add(rightWing);
 
     // 5. Dual Blue IR Sensor Modules Mounted on Prong Tips (Tutorial Part 4 & 5)
     const irPcbMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.3 }); // Distinctive blue PCB
@@ -543,10 +555,10 @@ class Viewport3D {
       irGroup.add(pot);
 
       irGroup.position.set(mountX + scoopLen - 0.016, 0.020, ir.z);
-      scoopGroup.add(irGroup);
+      bumperGroup.add(irGroup);
     }
 
-    this.robotGroup.add(scoopGroup);
+    this.robotGroup.add(bumperGroup);
   }
 
   /**
