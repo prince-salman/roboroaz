@@ -235,9 +235,9 @@ class PhysicsEngine {
 
       if (inScoopCavity) {
         robot.hasScoopContact = true;
-        // Scoop backplate physical non-penetration (lx = 0.135)
-        if (lx < 0.135) {
-          const penetration = 0.135 - lx;
+        // Scoop backplate physical non-penetration (lx = 0.145)
+        if (lx < 0.145) {
+          const penetration = 0.145 - lx;
           if (cubeHitObstacle) {
             // Cube is blocked against obstacle! Block robot from crushing cube!
             robot.x -= penetration * cosT;
