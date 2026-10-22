@@ -44,7 +44,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 flex flex-col h-screen select-none overflow-hidden">
 
-  <!-- TOP HEADER / CONTROL BAR -->
+  <!-- TOP HEADER -->
   <header class="bg-slate-900/90 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between z-20 shrink-0">
     <div class="flex items-center space-x-3">
       <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
@@ -160,45 +160,6 @@
         </span>
       </div>
 
-      <!-- Bottom Overlay: Simulation Control & Quick Cargo Action -->
-      <div class="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
-        <!-- Left: Sim Rate & Step -->
-        <div class="flex items-center space-x-2 bg-slate-900/90 backdrop-blur-md px-3 py-2 rounded-lg border border-slate-800/90 shadow-lg pointer-events-auto">
-          <button id="btn-sim-play-pause" class="flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs">
-            <i data-lucide="pause" class="w-3.5 h-3.5"></i>
-            <span>Pause</span>
-          </button>
-          <button id="btn-sim-step" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs" title="Step 1 Frame">
-            <i data-lucide="step-forward" class="w-3.5 h-3.5"></i>
-          </button>
-
-          <span class="text-[11px] text-slate-400 ml-1">Speed:</span>
-          <select id="sim-speed-select" class="bg-slate-800 text-slate-200 text-xs rounded px-1.5 py-1 border border-slate-700 focus:outline-none">
-            <option value="0.5">0.5x</option>
-            <option value="1.0" selected>1.0x (Realtime)</option>
-            <option value="2.0">2.0x (Fast)</option>
-            <option value="5.0">5.0x (Turbo)</option>
-          </select>
-
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-
-          <button id="btn-manual-teleop" class="flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded text-xs transition-all" title="Toggle Keyboard Control">
-            <i data-lucide="gamepad-2" class="w-3.5 h-3.5"></i>
-            <span>Manual (WASD+QE)</span>
-          </button>
-        </div>
-
-        <!-- Right: Cargo Quick Actions -->
-        <div class="flex items-center space-x-2 bg-slate-900/90 backdrop-blur-md px-3 py-2 rounded-lg border border-slate-800/90 shadow-lg pointer-events-auto">
-          <span class="text-[11px] font-semibold text-slate-400 mr-1 flex items-center gap-1">
-            <i data-lucide="package" class="w-3.5 h-3.5 text-cyan-400"></i> Cargo:
-          </span>
-          <button id="btn-respawn-cubes" class="flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-cyan-600 rounded text-xs font-medium text-slate-200 hover:text-white border border-slate-700 transition-all" title="Respawn 3 Cargo Cubes at Safe Waypoints">
-            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
-            <span>Respawn Cubes</span>
-          </button>
-        </div>
-      </div>
 
       <!-- FINISH POINT REACHED MODAL (MISSION COMPLETE STATE) -->
       <div id="finish-modal" class="hidden absolute inset-0 z-30 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300">
@@ -314,14 +275,14 @@
           <div class="px-3 py-1.5 bg-slate-900/80 border-b border-slate-800/80 flex items-center justify-between text-[11px] shrink-0">
             <div class="flex items-center space-x-2 text-slate-300 font-semibold">
               <i data-lucide="terminal" class="w-3.5 h-3.5 text-cyan-400"></i>
-              <span>Simulator Console</span>
+              <span>Serial Monitor / Console</span>
             </div>
             <button id="btn-clear-console" class="text-slate-500 hover:text-slate-300">
               Clear
             </button>
           </div>
           <div id="console-logs" class="flex-1 p-2.5 overflow-y-auto space-y-1 font-mono text-xs">
-            <div class="text-slate-500 text-[11px]">System ready. Click [Run Code] to start autonomous control loop.</div>
+            <div class="text-slate-500 text-[11px]">System ready. Click [Run Code] to start autonomous program.</div>
           </div>
         </div>
       </div>

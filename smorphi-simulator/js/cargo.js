@@ -314,9 +314,9 @@ class CargoManager {
       // Bumper backplate pushing face is at lx = 0.100m. Cube half-size is 0.045m.
       // Physical non-penetration surface is at lx = 0.145m.
       // Bumper inner half-width is 0.075m. Cube half-width is 0.045m -> max lateral offset is 0.030m.
-      const isPhysicallyTouchingBackplate = (lx >= 0.08 && lx <= 0.155 && Math.abs(ly) <= 0.045);
+      const isPhysicallyTouchingBackplate = (lx >= 0.08 && lx <= 0.165 && Math.abs(ly) <= 0.065);
 
-      if (isPhysicallyTouchingBackplate && (robot.vx > 0.005 || Math.abs(robot.omega) > 0.05)) {
+      if (isPhysicallyTouchingBackplate && robot.vx > 0.005) {
         hasScoopContact = true;
         if (cube.state !== "DELIVERED_AT_GOAL") {
           cube.state = "PUSHING_ON_GROUND";
@@ -338,13 +338,12 @@ class CargoManager {
           cube.y -= signY * lateralOverlap * cosT;
         }
 
-        // 3. Direct mechanical push transfer: forward drive and rotational sweeping
-        const bayVx = robot.globalVx - robot.omega * 0.145 * sinT;
-        const bayVy = robot.globalVy + robot.omega * 0.145 * cosT;
-        cube.vx = bayVx;
-        cube.vy = bayVy;
-        cube.omega = robot.omega;
-        cube.theta = robot.theta;
+        // 3. Direct mechanical push transfer: forward drive on floor, cube does NOT spin
+        const fwdSpeed = Math.max(0, robot.vx);
+        cube.vx = fwdSpeed * cosT;
+        cube.vy = fwdSpeed * sinT;
+        cube.omega = 0.0;
+        cube.theta = 0.0;
       } else {
         if (cube.state === "PUSHING_ON_GROUND") {
           const spd = Math.hypot(cube.vx, cube.vy);

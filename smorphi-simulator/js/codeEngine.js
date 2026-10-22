@@ -514,7 +514,7 @@ if (deliveredCount !== M.lastDelivered) {
 
 const buildCostmap = (extra) => {
   const dist = new Float32Array(N * N);
-  const CAP = 0.6;
+  const CAP = 0.30;
   for (let j = 0; j < N; j++) {
     const cy = (j + 0.5) * RES;
     const wy = Math.min(cy - H - 0.02, W - 0.02 - cy - H);
@@ -640,12 +640,12 @@ if (undelivered.length === 0) {
   const sinT = Math.sin(TH);
   const lx = (tc.x - X) * cosT + (tc.y - Y) * sinT;
   const ly = -(tc.x - X) * sinT + (tc.y - Y) * cosT;
-  const isPhysicallyContacting = (lx >= 0.08 && lx <= 0.155 && Math.abs(ly) <= 0.045);
+  const isPhysicallyContacting = (lx >= 0.08 && lx <= 0.165 && Math.abs(ly) <= 0.065);
 
   const toGx = GX - tc.x;
   const toGy = GY - tc.y;
   const pushAng = Math.atan2(toGy, toGx);
-  const standoffDist = 0.40;
+  const standoffDist = 0.38;
   const standoffX = tc.x - Math.cos(pushAng) * standoffDist;
   const standoffY = tc.y - Math.sin(pushAng) * standoffDist;
   const distToStandoff = Math.hypot(standoffX - X, standoffY - Y);
@@ -662,49 +662,52 @@ if (undelivered.length === 0) {
 
   if (M.mode === "PUSH_TO_GOAL") {
     isPushingCube = true;
-    targetGoalX = GX;
-    targetGoalY = GY;
-    for (let k = 0; k < undelivered.length; k++) {
-      const c = undelivered[k];
-      if (c.id !== tc.id) {
-        extraObs.push({ x: c.x - 0.08, y: c.y - 0.08, w: 0.16, h: 0.16 });
-      }
+    let pushTargetX = GX;
+    let pushTargetY = GY;
+    if (tc.id === 2 && Y < 3.2 && X > 3.2) {
+      pushTargetX = 3.35;
+      pushTargetY = 3.40;
     }
-  } else {
-    isPushingCube = false;
-    for (let k = 0; k < undelivered.length; k++) {
-      const c = undelivered[k];
-      if (c.id === tc.id) {
-        extraObs.push({ x: c.x - 0.08, y: c.y - 0.08, w: 0.16, h: 0.16 });
-      } else {
-        extraObs.push({ x: c.x - 0.09, y: c.y - 0.09, w: 0.18, h: 0.18 });
-      }
-    }
+    const angToTarget = Math.atan2(pushTargetY - Y, pushTargetX - X);
+    const steerDiff = wrap(angToTarget - TH);
+    const steer = Math.max(-0.35, Math.min(0.35, 1.2 * steerDiff));
+    robot.setVelocity(0.25, 0, steer);
+    return;
+  }
 
-    if (M.mode === "NAVIGATE_TO_STANDOFF") {
-      targetGoalX = standoffX;
-      targetGoalY = standoffY;
-      if (distToStandoff < 0.14) {
-        M.mode = "ALIGN_STANDOFF";
-      }
+  isPushingCube = false;
+  for (let k = 0; k < undelivered.length; k++) {
+    const c = undelivered[k];
+    if (c.id === tc.id) {
+      extraObs.push({ x: c.x - 0.08, y: c.y - 0.08, w: 0.16, h: 0.16 });
+    } else {
+      extraObs.push({ x: c.x - 0.09, y: c.y - 0.09, w: 0.18, h: 0.18 });
     }
+  }
 
-    if (M.mode === "ALIGN_STANDOFF") {
-      const angToCube = Math.atan2(tc.y - Y, tc.x - X);
-      const alignDiff = wrap(angToCube - TH);
-      if (Math.abs(alignDiff) > 0.08) {
-        robot.setVelocity(0, 0, Math.max(-1.8, Math.min(1.8, 2.4 * alignDiff)));
+  if (M.mode === "NAVIGATE_TO_STANDOFF") {
+    targetGoalX = standoffX;
+    targetGoalY = standoffY;
+    if (distToStandoff < 0.18) {
+      const alignDiff = wrap(pushAng - TH);
+      if (Math.abs(alignDiff) > 0.12) {
+        robot.setVelocity(0.04, 0, Math.max(-1.4, Math.min(1.4, 2.2 * alignDiff)));
         return;
       }
       M.mode = "ENGAGE_CUBE";
     }
+  }
 
-    if (M.mode === "ENGAGE_CUBE") {
-      const angToCube = Math.atan2(tc.y - Y, tc.x - X);
-      const engageDiff = wrap(angToCube - TH);
-      robot.setVelocity(0.20, 0, Math.max(-1.0, Math.min(1.0, 2.0 * engageDiff)));
+  if (M.mode === "ENGAGE_CUBE") {
+    if (distToStandoff > 0.45 && distToCube > 0.40) {
+      M.mode = "NAVIGATE_TO_STANDOFF";
+      M.path = [];
+      M.replanTimer = 999;
       return;
     }
+    const engageDiff = wrap(pushAng - TH);
+    robot.setVelocity(0.22, 0, Math.max(-0.4, Math.min(0.4, 1.2 * engageDiff)));
+    return;
   }
 }
 
@@ -728,10 +731,9 @@ if (M.path.length > 0) {
   const targetAng = Math.atan2(pt.y - Y, pt.x - X);
   const angDiff = wrap(targetAng - TH);
   const distToGoal = Math.hypot(targetGoalX - X, targetGoalY - Y);
-  const maxSpd = isPushingCube ? 0.25 : 0.35;
-  const spd = Math.max(0.12, Math.min(maxSpd, 1.2 * distToGoal));
-  const omega = Math.max(-1.4, Math.min(1.4, 2.2 * angDiff));
-  const fwd = Math.max(0.25, Math.cos(angDiff));
+  const spd = Math.max(0.14, Math.min(0.35, 1.2 * distToGoal));
+  const omega = Math.max(-1.5, Math.min(1.5, 2.0 * angDiff));
+  const fwd = Math.max(0.20, Math.cos(angDiff));
   robot.setVelocity(spd * fwd, 0, omega);
 } else {
   const targetAng = Math.atan2(targetGoalY - Y, targetGoalX - X);
@@ -740,8 +742,7 @@ if (M.path.length > 0) {
 }
 `,
 
-      // 2. Goal Seeking with Artificial Potential Field
-      goal_seeker: `if (!memory.init) {
+    goal_seeker: `if (!memory.init) {
   memory.init = true;
   robot.log("Target Seeking Navigator Started!");
 }
@@ -781,8 +782,7 @@ let cmdOmega = targetAngle * 0.8;
 robot.setVelocity(cmdVx, cmdVy, cmdOmega);
 `,
 
-      // 3. Mecanum Holonomic Orbit (No-Turn)
-      holonomic_drift: `if (!memory.timer) memory.timer = 0;
+    holonomic_drift: `if (!memory.timer) memory.timer = 0;
 memory.timer += dt;
 
 const phase = (memory.timer % 4.0) / 4.0;
@@ -794,8 +794,7 @@ const vy = Math.sin(angle) * 0.30;
 robot.setVelocity(vx, vy, 0.0);
 `,
 
-      // 4. PID Wall Follower
-      wall_follower: `const targetDist = 0.35;
+    wall_follower: `const targetDist = 0.35;
 const currentDist = sensors.lidar.getRight(30);
 
 if (!memory.prevError) memory.prevError = 0;
