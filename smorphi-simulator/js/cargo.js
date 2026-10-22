@@ -310,42 +310,45 @@ class CargoManager {
         minProximity = dist;
       }
 
-      // Scoop physical push interaction:
-      // Scoop extends from mount x=0.085 to x=0.225. Inner half-width is 0.075m.
-      // Cube half size is 0.045m.
-      // Minimum lx for cube center is scoop backplate (0.085) + cube.halfSize (0.045) = 0.130m.
-      const inFrontOfScoop = (lx >= 0.08 && lx <= 0.28 && Math.abs(ly) <= 0.11);
+      // Real physical rigid-body contact pushing (Strictly NO distance grabbing / NO magnetic snap)
+      // Bumper backplate pushing face is at lx = 0.100m. Cube half-size is 0.045m.
+      // Physical non-penetration surface is at lx = 0.145m.
+      // Bumper inner half-width is 0.075m. Cube half-width is 0.045m.
+      const isPhysicallyTouchingBackplate = (lx >= 0.08 && lx <= 0.150 && Math.abs(ly) <= 0.055);
+      const isInsideBumperBay = (lx >= 0.10 && lx <= 0.225 && Math.abs(ly) <= 0.075);
 
-      if (inFrontOfScoop) {
+      if (isPhysicallyTouchingBackplate) {
         hasScoopContact = true;
         if (cube.state !== "DELIVERED_AT_GOAL") {
           cube.state = "PUSHING_ON_GROUND";
           pushingCount++;
         }
 
-        // Scoop backplate physical non-penetration constraint (pushing forward)
-        if (lx < 0.135) {
-          const pushForward = Math.min(0.035, 0.135 - lx);
-          cube.x += pushForward * cosT;
-          cube.y += pushForward * sinT;
+        // Rigid body non-penetration: push cube forward out of the backplate
+        if (lx < 0.145) {
+          const penetration = 0.145 - lx;
+          cube.x += penetration * cosT;
+          cube.y += penetration * sinT;
         }
 
-        // Side prongs centering guide (keeps cube centered in scoop during pushing)
-        if (Math.abs(ly) > 0.045) {
-          const centerPushY = Math.max(-0.025, Math.min(0.025, -Math.sign(ly) * (Math.abs(ly) - 0.045) * 0.5));
-          cube.x += -centerPushY * sinT;
-          cube.y += centerPushY * cosT;
+        // Direct mechanical push transfer: only when robot is moving forward into the cube
+        const fwdSpeed = Math.max(0, robot.vx);
+        if (fwdSpeed > 0.01) {
+          cube.vx = fwdSpeed * cosT;
+          cube.vy = fwdSpeed * sinT;
         }
-
-        // Transfer forward movement: cube slides across ground with robot
-        if (robot.vx > 0.01) {
-          cube.vx = robot.globalVx;
-          cube.vy = robot.globalVy;
+      } else if (isInsideBumperBay) {
+        // Physical lateral deflection if cube contacts side prong walls (no pulling, only deflection)
+        if (Math.abs(ly) > 0.038) {
+          const lateralOverlap = Math.abs(ly) - 0.035;
+          const pushOut = Math.min(0.015, lateralOverlap);
+          cube.x += Math.sign(ly) * pushOut * sinT;
+          cube.y += -Math.sign(ly) * pushOut * cosT;
         }
       } else {
         if (cube.state === "PUSHING_ON_GROUND") {
           const spd = Math.hypot(cube.vx, cube.vy);
-          if (spd < 0.01 && dist > 0.35) {
+          if (spd < 0.01 && dist > 0.20) {
             cube.state = (distToGoal <= goalRadius + 0.03) ? "DELIVERED_AT_GOAL" : "UNTOUCHED";
           }
         }

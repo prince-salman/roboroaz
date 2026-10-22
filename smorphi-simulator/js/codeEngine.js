@@ -637,9 +637,9 @@ if (undelivered.length === 0) {
   const sinT = Math.sin(TH);
   const lx = (tc.x - X) * cosT + (tc.y - Y) * sinT;
   const ly = -(tc.x - X) * sinT + (tc.y - Y) * cosT;
-  const inScoopContact = (lx >= 0.08 && lx <= 0.35 && Math.abs(ly) <= 0.14);
+  const isPhysicallyContacting = (lx >= 0.10 && lx <= 0.155 && Math.abs(ly) <= 0.050);
 
-  if (inScoopContact) {
+  if (isPhysicallyContacting) {
     isPushingCube = true;
     targetGoalX = GX;
     targetGoalY = GY;
@@ -650,13 +650,13 @@ if (undelivered.length === 0) {
     const behindDist = 0.22;
     targetGoalX = tc.x - (toGx / gDist) * behindDist;
     targetGoalY = tc.y - (toGy / gDist) * behindDist;
-    if (distToCube < 0.38) {
+    if (distToCube < 0.35) {
       const angToCube = Math.atan2(tc.y - Y, tc.x - X);
       const diff = wrap(angToCube - TH);
-      if (Math.abs(diff) > 0.12) {
+      if (Math.abs(diff) > 0.10) {
         robot.setVelocity(0.06, 0, Math.max(-2.2, Math.min(2.2, 3.2 * diff)));
       } else {
-        robot.setVelocity(0.25, 0, Math.max(-1.2, Math.min(1.2, 1.5 * diff)));
+        robot.setVelocity(0.24, 0, Math.max(-1.0, Math.min(1.0, 1.5 * diff)));
       }
       return;
     }
