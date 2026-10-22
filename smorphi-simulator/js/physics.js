@@ -231,12 +231,12 @@ class PhysicsEngine {
       const dy = cube.y - robot.y;
       const lx = dx * cosT + dy * sinT;
       const ly = -dx * sinT + dy * cosT;
-      const inScoopCavity = (lx >= 0.06 && lx <= 0.28 && Math.abs(ly) <= 0.12);
+      const inScoopCavity = (lx >= 0.08 && lx <= 0.275 && Math.abs(ly) <= 0.075);
 
       if (inScoopCavity) {
-        robot.hasScoopContact = true;
-        // Scoop backplate physical non-penetration (lx = 0.145)
-        if (lx < 0.145) {
+        // Scoop backplate physical non-penetration (lx = 0.145) only when moving forward
+        if (lx < 0.145 && robot.vx > 0.005) {
+          robot.hasScoopContact = true;
           const penetration = 0.145 - lx;
           if (cubeHitObstacle) {
             // Cube is blocked against obstacle! Block robot from crushing cube!

@@ -314,10 +314,15 @@ class CargoManager {
       // Bumper backplate pushing face is at lx = 0.100m. Cube half-size is 0.045m.
       // Physical non-penetration surface is at lx = 0.145m.
       // Bumper inner half-width is 0.075m. Cube half-width is 0.045m -> max lateral offset is 0.030m.
-      const isPhysicallyTouchingBackplate = (lx >= 0.08 && lx <= 0.155 && Math.abs(ly) <= 0.048);
-      const isInsideBumperBay = (lx >= 0.10 && lx <= 0.225 && Math.abs(ly) <= 0.065);
+      const isPhysicallyTouchingBackplate = (lx >= 0.08 && lx <= 0.155 && Math.abs(ly) <= 0.045);
 
-      if (isPhysicallyTouchingBackplate || isInsideBumperBay) {
+      if (isPhysicallyTouchingBackplate && (robot.vx > 0.005 || Math.abs(robot.omega) > 0.05)) {
+        hasScoopContact = true;
+        if (cube.state !== "DELIVERED_AT_GOAL") {
+          cube.state = "PUSHING_ON_GROUND";
+          pushingCount++;
+        }
+
         // 1. Rigid body non-penetration with bumper backplate
         if (lx < 0.145) {
           const penetration = 0.145 - lx;
@@ -325,7 +330,7 @@ class CargoManager {
           cube.y += penetration * sinT;
         }
 
-        // 2. Lateral containment by left/right bumper prongs
+        // 2. Lateral containment by left/right bumper prongs while pushing
         if (Math.abs(ly) > 0.030) {
           const lateralOverlap = Math.abs(ly) - 0.030;
           const signY = Math.sign(ly);
@@ -334,20 +339,12 @@ class CargoManager {
         }
 
         // 3. Direct mechanical push transfer: forward drive and rotational sweeping
-        if (isPhysicallyTouchingBackplate && (robot.vx > 0.01 || Math.abs(robot.omega) > 0.05)) {
-          hasScoopContact = true;
-          if (cube.state !== "DELIVERED_AT_GOAL") {
-            cube.state = "PUSHING_ON_GROUND";
-            pushingCount++;
-          }
-          // Velocity of bumper contact point in global frame (v_robot + omega x r)
-          const bayVx = robot.globalVx - robot.omega * 0.145 * sinT;
-          const bayVy = robot.globalVy + robot.omega * 0.145 * cosT;
-          cube.vx = bayVx;
-          cube.vy = bayVy;
-          cube.omega = robot.omega;
-          cube.theta = robot.theta;
-        }
+        const bayVx = robot.globalVx - robot.omega * 0.145 * sinT;
+        const bayVy = robot.globalVy + robot.omega * 0.145 * cosT;
+        cube.vx = bayVx;
+        cube.vy = bayVy;
+        cube.omega = robot.omega;
+        cube.theta = robot.theta;
       } else {
         if (cube.state === "PUSHING_ON_GROUND") {
           const spd = Math.hypot(cube.vx, cube.vy);

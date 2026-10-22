@@ -481,6 +481,7 @@ if (M.state === "BACKING_UP") {
   M.backTimer -= dt;
   if (M.backTimer <= 0) {
     M.state = "NAVIGATE";
+    M.mode = "NAVIGATE_TO_STANDOFF";
     M.path = [];
     M.replanTimer = 999;
   } else {
@@ -502,6 +503,7 @@ if (deliveredCount !== M.lastDelivered) {
       robot.log("Menerima koordinat target berikutnya #0" + nextTarget.id + " (" + nextTarget.name + "): X=" + nextTarget.x.toFixed(2) + ", Y=" + nextTarget.y.toFixed(2));
     }
     M.state = "BACKING_UP";
+    M.mode = "NAVIGATE_TO_STANDOFF";
     M.backTimer = 0.8;
     robot.setVelocity(-0.25, 0, 0);
     return;
@@ -510,7 +512,7 @@ if (deliveredCount !== M.lastDelivered) {
   }
 }
 
-const buildCostmap = () => {
+const buildCostmap = (extra) => {
   const dist = new Float32Array(N * N);
   const CAP = 0.6;
   for (let j = 0; j < N; j++) {
@@ -522,7 +524,7 @@ const buildCostmap = () => {
     }
   }
   const reach = H + CAP;
-  const obs = sensors.obstacles || [];
+  const obs = (sensors.obstacles || []).concat(extra || []);
   for (let k = 0; k < obs.length; k++) {
     const o = obs[k];
     const i0 = Math.max(0, Math.floor((o.x - reach) / RES));
@@ -620,6 +622,7 @@ const astar = (costmap, sx, sy, gx, gy, safe) => {
 let targetGoalX = GX;
 let targetGoalY = GY;
 let isPushingCube = false;
+const extraObs = [];
 
 if (undelivered.length === 0) {
   if (Math.hypot(GX - X, GY - Y) < 0.65) {
@@ -637,42 +640,69 @@ if (undelivered.length === 0) {
   const sinT = Math.sin(TH);
   const lx = (tc.x - X) * cosT + (tc.y - Y) * sinT;
   const ly = -(tc.x - X) * sinT + (tc.y - Y) * cosT;
-  const isPhysicallyContacting = (lx >= 0.08 && lx <= 0.165 && Math.abs(ly) <= 0.048);
+  const isPhysicallyContacting = (lx >= 0.08 && lx <= 0.155 && Math.abs(ly) <= 0.045);
 
   const toGx = GX - tc.x;
   const toGy = GY - tc.y;
   const pushAng = Math.atan2(toGy, toGx);
-  const standoffDist = 0.36;
+  const standoffDist = 0.40;
   const standoffX = tc.x - Math.cos(pushAng) * standoffDist;
   const standoffY = tc.y - Math.sin(pushAng) * standoffDist;
   const distToStandoff = Math.hypot(standoffX - X, standoffY - Y);
 
+  if (!M.mode) M.mode = "NAVIGATE_TO_STANDOFF";
+
   if (isPhysicallyContacting) {
+    M.mode = "PUSH_TO_GOAL";
+  } else if (M.mode === "PUSH_TO_GOAL" && distToCube > 0.30) {
+    M.mode = "NAVIGATE_TO_STANDOFF";
+    M.path = [];
+    M.replanTimer = 999;
+  }
+
+  if (M.mode === "PUSH_TO_GOAL") {
     isPushingCube = true;
-    if (M.navMode !== "PUSH") {
-      M.navMode = "PUSH";
-      M.path = [];
-      M.replanTimer = 999;
-    }
     targetGoalX = GX;
     targetGoalY = GY;
+    for (let k = 0; k < undelivered.length; k++) {
+      const c = undelivered[k];
+      if (c.id !== tc.id) {
+        extraObs.push({ x: c.x - 0.08, y: c.y - 0.08, w: 0.16, h: 0.16 });
+      }
+    }
   } else {
     isPushingCube = false;
-    if (M.navMode !== "APPROACH") {
-      M.navMode = "APPROACH";
-      M.path = [];
-      M.replanTimer = 999;
+    for (let k = 0; k < undelivered.length; k++) {
+      const c = undelivered[k];
+      if (c.id === tc.id) {
+        extraObs.push({ x: c.x - 0.08, y: c.y - 0.08, w: 0.16, h: 0.16 });
+      } else {
+        extraObs.push({ x: c.x - 0.09, y: c.y - 0.09, w: 0.18, h: 0.18 });
+      }
     }
-    targetGoalX = standoffX;
-    targetGoalY = standoffY;
 
-    if (distToStandoff < 0.15 || (distToCube < 0.28 && Math.abs(wrap(pushAng - TH)) < 0.35)) {
-      const alignDiff = wrap(pushAng - TH);
-      if (Math.abs(alignDiff) > 0.10) {
-        robot.setVelocity(0.04, 0, Math.max(-2.0, Math.min(2.0, 2.8 * alignDiff)));
+    if (M.mode === "NAVIGATE_TO_STANDOFF") {
+      targetGoalX = standoffX;
+      targetGoalY = standoffY;
+      if (distToStandoff < 0.14) {
+        M.mode = "ALIGN_STANDOFF";
+      }
+    }
+
+    if (M.mode === "ALIGN_STANDOFF") {
+      const angToCube = Math.atan2(tc.y - Y, tc.x - X);
+      const alignDiff = wrap(angToCube - TH);
+      if (Math.abs(alignDiff) > 0.08) {
+        robot.setVelocity(0, 0, Math.max(-1.8, Math.min(1.8, 2.4 * alignDiff)));
         return;
       }
-      robot.setVelocity(0.20, 0, Math.max(-1.0, Math.min(1.0, 1.8 * alignDiff)));
+      M.mode = "ENGAGE_CUBE";
+    }
+
+    if (M.mode === "ENGAGE_CUBE") {
+      const angToCube = Math.atan2(tc.y - Y, tc.x - X);
+      const engageDiff = wrap(angToCube - TH);
+      robot.setVelocity(0.20, 0, Math.max(-1.0, Math.min(1.0, 2.0 * engageDiff)));
       return;
     }
   }
@@ -680,7 +710,7 @@ if (undelivered.length === 0) {
 
 M.replanTimer = (M.replanTimer || 0) + dt;
 if (M.path.length === 0 || M.replanTimer > 0.8) {
-  const costmap = buildCostmap();
+  const costmap = buildCostmap(extraObs);
   const p = astar(costmap, X, Y, targetGoalX, targetGoalY, 0.04) || astar(costmap, X, Y, targetGoalX, targetGoalY, 0.015);
   if (p) {
     M.path = p;
@@ -691,7 +721,7 @@ if (M.path.length === 0 || M.replanTimer > 0.8) {
 }
 
 if (M.path.length > 0) {
-  while (M.pi < M.path.length - 1 && Math.hypot(M.path[M.pi].x - X, M.path[M.pi].y - Y) < 0.25) {
+  while (M.pi < M.path.length - 1 && Math.hypot(M.path[M.pi].x - X, M.path[M.pi].y - Y) < 0.20) {
     M.pi++;
   }
   const pt = M.path[M.pi];
@@ -699,7 +729,7 @@ if (M.path.length > 0) {
   const angDiff = wrap(targetAng - TH);
   const distToGoal = Math.hypot(targetGoalX - X, targetGoalY - Y);
   const maxSpd = isPushingCube ? 0.25 : 0.35;
-  const spd = Math.max(0.12, Math.min(maxSpd, distToGoal));
+  const spd = Math.max(0.12, Math.min(maxSpd, 1.2 * distToGoal));
   const omega = Math.max(-1.4, Math.min(1.4, 2.2 * angDiff));
   const fwd = Math.max(0.25, Math.cos(angDiff));
   robot.setVelocity(spd * fwd, 0, omega);
