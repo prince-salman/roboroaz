@@ -90,6 +90,25 @@ class SmorphiRobot {
   }
 
   /**
+   * Smorphi Arduino Library (smorphi_single.h) compatibility helpers
+   */
+  MoveForward(speed = 0.35) {
+    this.setVelocity(speed, 0, 0);
+  }
+
+  MoveBackward(speed = 0.35) {
+    this.setVelocity(-speed, 0, 0);
+  }
+
+  CenterPivotLeft(speed = 1.5) {
+    this.setVelocity(0, 0, speed);
+  }
+
+  CenterPivotRight(speed = 1.5) {
+    this.setVelocity(0, 0, -speed);
+  }
+
+  /**
    * Immediate stop
    */
   stop() {

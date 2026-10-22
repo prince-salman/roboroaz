@@ -785,6 +785,43 @@ const steer = Kp * error + Kd * derivative;
 
 robot.setVelocity(0.28, 0.0, -steer);
 `,
+
+      line_follower_ir: `const M = memory;
+if (!M.initialized) {
+  M.initialized = true;
+  M.baseSpeed = 0.35;
+  M.turnSpeed = 1.4;
+}
+
+const leftStatus = (sensors.ir && sensors.ir.module1_sensor_status !== undefined) ? sensors.ir.module1_sensor_status : ((sensors.lidar[350] < 0.25) ? 1 : 0);
+const rightStatus = (sensors.ir && sensors.ir.module4_sensor_status !== undefined) ? sensors.ir.module4_sensor_status : ((sensors.lidar[10] < 0.25) ? 1 : 0);
+
+if (leftStatus === 0 && rightStatus === 0) {
+  if (typeof robot.MoveForward === "function") {
+    robot.MoveForward(M.baseSpeed);
+  } else {
+    robot.setVelocity(M.baseSpeed, 0, 0);
+  }
+} else if (leftStatus === 1 && rightStatus === 0) {
+  if (typeof robot.CenterPivotLeft === "function") {
+    robot.CenterPivotLeft(M.turnSpeed);
+  } else {
+    robot.setVelocity(0.08, 0, M.turnSpeed);
+  }
+} else if (leftStatus === 0 && rightStatus === 1) {
+  if (typeof robot.CenterPivotRight === "function") {
+    robot.CenterPivotRight(M.turnSpeed);
+  } else {
+    robot.setVelocity(0.08, 0, -M.turnSpeed);
+  }
+} else {
+  if (typeof robot.stop === "function") {
+    robot.stop();
+  } else {
+    robot.setVelocity(0, 0, 0);
+  }
+}
+`,
     };
     this.presets.cargo_retrieval = this.presets.default_avoidance;
   }

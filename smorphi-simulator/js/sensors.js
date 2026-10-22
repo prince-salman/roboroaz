@@ -350,6 +350,14 @@ class SensorSuite {
       target: { ...this.target },
       collision: robot.inCollision,
       obstacles: this.map.obstacles,
+      ir: {
+        left: ranges[350] < 0.22 || ranges[0] < 0.22,
+        right: ranges[10] < 0.22 || ranges[0] < 0.22,
+        statusLeft: (ranges[350] < 0.25) ? 1 : 0,
+        statusRight: (ranges[10] < 0.25) ? 1 : 0,
+        module1_sensor_status: (ranges[350] < 0.25) ? 1 : 0,
+        module4_sensor_status: (ranges[10] < 0.25) ? 1 : 0,
+      },
     };
   }
 }

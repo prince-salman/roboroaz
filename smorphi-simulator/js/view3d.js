@@ -148,11 +148,11 @@ class Viewport3D {
     gridHelper.position.set(W / 2, 0.002, H / 2);
     this.scene.add(gridHelper);
 
-    // Perimeter Border Walls
+    // Perimeter Border Walls (Competition White Modular Panels)
     const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      roughness: 0.6,
-      metalness: 0.4,
+      color: 0xf8fafc,
+      roughness: 0.35,
+      metalness: 0.15,
     });
     const wallThick = CONFIG.ARENA.WALL_THICKNESS;
     const wallH = CONFIG.ARENA.WALL_HEIGHT;
@@ -182,7 +182,8 @@ class Viewport3D {
   }
 
   /**
-   * Build 3D Single-Block Smorphi Base Unit with 4 Tiers and Front Cargo Scoop
+   * Build 3D Single-Block Smorphi Base Unit with 4 Stacked White Laser-Cut Acrylic Decks,
+   * Blue TT Motors, FPV Camera, Battery Pack, and Competition Yellow Front Scoop with Dual Blue IR Sensors.
    */
   buildRobotModel() {
     this.robotGroup = new THREE.Group();
@@ -191,22 +192,113 @@ class Viewport3D {
     const W = CONFIG.ROBOT.WIDTH;  // 0.170m
     const L = CONFIG.ROBOT.LENGTH; // 0.170m
 
-    // ==========================================
-    // TIER 1: CHASSIS BASEPLATE & MECANUM WHEELS (y = 0 to 0.065)
-    // ==========================================
-    const basePlateGeo = new THREE.BoxGeometry(L * 0.98, 0.016, W * 0.98);
-    const basePlateMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.4,
-      metalness: 0.8,
+    // Materials for physical Smorphi construction (matching Tutorial Videos Part 1, 4, 5, 6)
+    const whiteAcrylicMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.18,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.95,
     });
-    const basePlate = new THREE.Mesh(basePlateGeo, basePlateMat);
-    basePlate.position.y = 0.032;
-    basePlate.castShadow = true;
-    basePlate.receiveShadow = true;
-    this.robotGroup.add(basePlate);
 
-    // 4 Mecanum Wheels at chassis corners
+    const blackBasePlateMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.45,
+      metalness: 0.6,
+    });
+
+    const standoffMat = new THREE.MeshStandardMaterial({
+      color: 0x111827,
+      roughness: 0.3,
+      metalness: 0.85,
+    });
+
+    const ttMotorMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7, // Distinctive blue TT motor gearbox housing
+      roughness: 0.4,
+      metalness: 0.3,
+    });
+
+    const shaftYellowMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.3,
+      metalness: 0.2,
+    });
+
+    // 1. Four Laser-Cut White Acrylic Decks
+    const deckHeights = [0.038, 0.098, 0.168, 0.238];
+    const deckSizes = [
+      { l: L * 0.98, w: W * 0.98 },
+      { l: L * 0.94, w: W * 0.94 },
+      { l: L * 0.92, w: W * 0.92 },
+      { l: L * 0.92, w: W * 0.92 },
+    ];
+
+    for (let d = 0; d < 4; d++) {
+      const dGeo = new THREE.BoxGeometry(deckSizes[d].l, 0.005, deckSizes[d].w);
+      const dMesh = new THREE.Mesh(dGeo, d === 0 ? blackBasePlateMat : whiteAcrylicMat);
+      dMesh.position.y = deckHeights[d];
+      dMesh.castShadow = true;
+      dMesh.receiveShadow = true;
+      this.robotGroup.add(dMesh);
+
+      // White acrylic edge bevel glow for realistic laser-cut acrylic sheen
+      if (d > 0) {
+        const edgeGeo = new THREE.BoxGeometry(deckSizes[d].l + 0.001, 0.002, deckSizes[d].w + 0.001);
+        const edgeMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0 });
+        const edgeMesh = new THREE.Mesh(edgeGeo, edgeMat);
+        edgeMesh.position.y = deckHeights[d];
+        this.robotGroup.add(edgeMesh);
+      }
+    }
+
+    // 2. Black Aluminum Standoff Pillars at the 4 Corners
+    const standoffCorners = [
+      { x: 0.066, z: 0.066 },
+      { x: 0.066, z: -0.066 },
+      { x: -0.066, z: 0.066 },
+      { x: -0.066, z: -0.066 },
+    ];
+    const totalStandoffH = deckHeights[3] - deckHeights[0];
+    const standoffGeo = new THREE.CylinderGeometry(0.004, 0.004, totalStandoffH, 12);
+
+    for (const sc of standoffCorners) {
+      const standoff = new THREE.Mesh(standoffGeo, standoffMat);
+      standoff.position.set(sc.x, deckHeights[0] + totalStandoffH / 2, sc.z);
+      standoff.castShadow = true;
+      this.robotGroup.add(standoff);
+
+      // Brass/silver screw tops on upper deck
+      const screwGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.003, 8);
+      const screwMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 });
+      const screw = new THREE.Mesh(screwGeo, screwMat);
+      screw.position.set(sc.x, deckHeights[3] + 0.003, sc.z);
+      this.robotGroup.add(screw);
+    }
+
+    // 3. Four Blue TT Gear Motors with yellow output shafts
+    const motorOffsets = [
+      { x: 0.045, z: 0.045 },
+      { x: 0.045, z: -0.045 },
+      { x: -0.045, z: 0.045 },
+      { x: -0.045, z: -0.045 },
+    ];
+    for (const mo of motorOffsets) {
+      const mGeo = new THREE.BoxGeometry(0.042, 0.022, 0.022);
+      const mMesh = new THREE.Mesh(mGeo, ttMotorMat);
+      mMesh.position.set(mo.x, 0.024, mo.z);
+      mMesh.castShadow = true;
+      this.robotGroup.add(mMesh);
+
+      // Yellow output axle boss
+      const bossGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.008, 10);
+      const boss = new THREE.Mesh(bossGeo, shaftYellowMat);
+      boss.rotation.x = Math.PI / 2;
+      boss.position.set(mo.x, 0.024, mo.z + (mo.z > 0 ? 0.013 : -0.013));
+      this.robotGroup.add(boss);
+    }
+
+    // 4. Mecanum Wheels at chassis corners
     const wheelR = CONFIG.ROBOT.WHEEL_RADIUS; // 0.030m
     const wheelW = CONFIG.ROBOT.WHEEL_WIDTH;  // 0.025m
     const wheelOffsets = CONFIG.ROBOT.WHEEL_OFFSETS; // [FL, FR, RL, RR]
@@ -240,74 +332,84 @@ class Viewport3D {
       this.wheelMeshes.push(wheelMesh);
     }
 
-    // ==========================================
-    // TIER 2: MOTOR DRIVER & POWER DISTRIBUTION DECK (y = 0.065 to 0.150)
-    // ==========================================
-    const tier2Geo = new THREE.BoxGeometry(L * 0.92, 0.080, W * 0.92);
-    const tier2Mat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      roughness: 0.5,
-      metalness: 0.6,
-    });
-    const tier2 = new THREE.Mesh(tier2Geo, tier2Mat);
-    tier2.position.y = 0.040 + 0.040 + 0.025; // y = 0.105
-    tier2.castShadow = true;
-    tier2.receiveShadow = true;
-    this.robotGroup.add(tier2);
+    // 5. Tier 2: Motor Driver Deck (y = 0.098 to 0.168)
+    const driverBoardGeo = new THREE.BoxGeometry(0.065, 0.006, 0.075);
+    const driverBoardMat = new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.4 }); // Red PCB
+    const driverBoard = new THREE.Mesh(driverBoardGeo, driverBoardMat);
+    driverBoard.position.set(0, 0.103, 0);
+    this.robotGroup.add(driverBoard);
 
-    // Heatsink fins on sides
-    const finMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.9, roughness: 0.2 });
-    for (let f = -2; f <= 2; f++) {
-      const finGeo = new THREE.BoxGeometry(0.008, 0.04, 0.004);
-      const finMeshL = new THREE.Mesh(finGeo, finMat);
-      finMeshL.position.set(-0.065, 0.105, f * 0.025);
-      this.robotGroup.add(finMeshL);
-    }
+    // Motor driver aluminum heatsink
+    const heatsinkGeo = new THREE.BoxGeometry(0.025, 0.025, 0.025);
+    const heatsinkMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.2 });
+    const heatsink = new THREE.Mesh(heatsinkGeo, heatsinkMat);
+    heatsink.position.set(0, 0.118, 0);
+    this.robotGroup.add(heatsink);
 
-    // Power status LED (emerald green)
-    const ledGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.006, 12);
+    // 6. Tier 3: Main Controller / ESP32 Deck (y = 0.168 to 0.238)
+    const espBoardGeo = new THREE.BoxGeometry(0.080, 0.006, 0.080);
+    const espBoardMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.35 }); // Blue PCB
+    const espBoard = new THREE.Mesh(espBoardGeo, espBoardMat);
+    espBoard.position.set(0, 0.173, 0);
+    this.robotGroup.add(espBoard);
+
+    // Status LED (Emerald Green)
+    const ledGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.006, 12);
     const ledMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
     const led = new THREE.Mesh(ledGeo, ledMat);
-    led.position.set(-0.065, 0.146, 0.05);
+    led.position.set(-0.045, 0.176, 0.035);
     this.robotGroup.add(led);
 
-    // ==========================================
-    // TIER 3: MINI PC / SBC COMPUTE & IMU 6-DOF DECK (y = 0.150 to 0.245)
-    // ==========================================
-    const tier3Geo = new THREE.BoxGeometry(L * 0.88, 0.085, W * 0.88);
-    const tier3Mat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.35,
-      metalness: 0.7,
-    });
-    const tier3 = new THREE.Mesh(tier3Geo, tier3Mat);
-    tier3.position.y = 0.190;
-    tier3.castShadow = true;
-    tier3.receiveShadow = true;
-    this.robotGroup.add(tier3);
+    // Comms Heartbeat LED (Cyan)
+    const comLedMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4 });
+    const comLed = new THREE.Mesh(ledGeo, comLedMat);
+    comLed.position.set(-0.045, 0.176, -0.035);
+    this.robotGroup.add(comLed);
 
-    // Cyan glowing accent rim on Mini PC
-    const accentGeo = new THREE.BoxGeometry(L * 0.89, 0.006, W * 0.89);
-    const accentMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4 });
-    const accent = new THREE.Mesh(accentGeo, accentMat);
-    accent.position.y = 0.233;
-    this.robotGroup.add(accent);
+    // 7. Tier 4: Top Deck with FPV Camera, Battery Pack & 2D LiDAR Turret
+    // FPV Camera Unit on Front Edge of Deck 4 (Tutorial Part 1 & 5)
+    const camGroup = new THREE.Group();
+    const camBodyGeo = new THREE.BoxGeometry(0.022, 0.022, 0.024);
+    const camBodyMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.4 });
+    const camBody = new THREE.Mesh(camBodyGeo, camBodyMat);
+    camGroup.add(camBody);
 
-    // ==========================================
-    // TIER 4: 2D PLANAR LIDAR SCANNER TURRET (y = 0.245 to 0.315)
-    // ==========================================
-    const lidarPedestalGeo = new THREE.CylinderGeometry(0.035, 0.042, 0.028, 16);
+    const camLensGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.008, 16);
+    const camLensMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.9, roughness: 0.1 });
+    const camLens = new THREE.Mesh(camLensGeo, camLensMat);
+    camLens.rotation.z = Math.PI / 2;
+    camLens.position.set(0.012, 0, 0);
+    camGroup.add(camLens);
+
+    camGroup.position.set(0.072, 0.252, 0);
+    this.robotGroup.add(camGroup);
+
+    // LiPo Battery Pack with yellow tape strap
+    const batGeo = new THREE.BoxGeometry(0.055, 0.022, 0.075);
+    const batMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.6 });
+    const battery = new THREE.Mesh(batGeo, batMat);
+    battery.position.set(-0.035, 0.252, 0);
+    this.robotGroup.add(battery);
+
+    const strapGeo = new THREE.BoxGeometry(0.012, 0.024, 0.077);
+    const strapMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 }); // Yellow safety tape strap
+    const strap = new THREE.Mesh(strapGeo, strapMat);
+    strap.position.set(-0.035, 0.252, 0);
+    this.robotGroup.add(strap);
+
+    // 2D Planar LiDAR Turret
+    const lidarPedestalGeo = new THREE.CylinderGeometry(0.035, 0.042, 0.024, 16);
     const lidarPedestalMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.3 });
     const lidarPedestal = new THREE.Mesh(lidarPedestalGeo, lidarPedestalMat);
-    lidarPedestal.position.y = 0.252;
+    lidarPedestal.position.set(0.015, 0.252, 0);
     this.robotGroup.add(lidarPedestal);
 
     const lidarHeadGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.024, 16);
     const lidarHeadMat = new THREE.MeshStandardMaterial({ color: 0x090d16, metalness: 0.9, roughness: 0.2 });
     this.lidarScannerMesh = new THREE.Mesh(lidarHeadGeo, lidarHeadMat);
-    this.lidarScannerMesh.position.y = 0.278;
+    this.lidarScannerMesh.position.set(0.015, 0.276, 0);
 
-    // Glowing laser diode
+    // Laser diode indicator
     const diodeGeo = new THREE.BoxGeometry(0.012, 0.006, 0.006);
     const diodeMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
     const diode = new THREE.Mesh(diodeGeo, diodeMat);
@@ -317,13 +419,14 @@ class Viewport3D {
     this.robotGroup.add(this.lidarScannerMesh);
 
     // ==========================================
-    // FRONT CARGO MESH SCOOP (Mounted on front face: x = +0.085 to +0.225)
+    // FRONT CARGO YELLOW SCOOP WITH DUAL IR SENSORS
     // ==========================================
     this.buildCargoScoop();
   }
 
   /**
-   * Build the Front Cargo Mesh Scoop mechanical attachment
+   * Build the Front Competition Yellow 3D-Printed Scoop with Dual Blue IR Sensor Modules
+   * (Matching Physical Assembly in Tutorial Part 4, 5, 6)
    */
   buildCargoScoop() {
     const scoopGroup = new THREE.Group();
@@ -337,64 +440,111 @@ class Viewport3D {
     const centerX = mountX + scoopLen / 2;
     const halfOuterW = outerW / 2;
 
-    // Material for wire mesh walls
-    const meshMat = new THREE.MeshStandardMaterial({
-      color: 0x64748b,
-      metalness: 0.85,
-      roughness: 0.25,
-      wireframe: false,
+    // Competition Bright Yellow 3D-Printed PLA Material (from Videos Part 4, 5, 6)
+    const scoopYellowMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.38,
+      metalness: 0.12,
     });
 
-    const meshRimMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      metalness: 0.6,
+    const scoopAccentMat = new THREE.MeshStandardMaterial({
+      color: 0xeab308,
       roughness: 0.3,
+      metalness: 0.2,
     });
 
-    // 1. Thin Bottom Lip Plate (slides under cubes)
+    // 1. Thin Bottom Lip / Base Plate
     const lipGeo = new THREE.BoxGeometry(scoopLen, 0.004, outerW - 0.01);
-    const lipMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.3 });
-    const lipMesh = new THREE.Mesh(lipGeo, lipMat);
+    const lipMesh = new THREE.Mesh(lipGeo, scoopYellowMat);
     lipMesh.position.set(centerX, 0.006, 0);
     lipMesh.castShadow = true;
     lipMesh.receiveShadow = true;
     scoopGroup.add(lipMesh);
 
-    // 2. Left Mesh Wall Prong (In Three.js Left is -Z)
+    // 2. Left Yellow Wall Prong (In Three.js Left is -Z)
     const sideWallGeo = new THREE.BoxGeometry(scoopLen, scoopH, wallThick);
-    const leftWall = new THREE.Mesh(sideWallGeo, meshMat);
+    const leftWall = new THREE.Mesh(sideWallGeo, scoopYellowMat);
     leftWall.position.set(centerX, scoopH / 2 + 0.006, -(halfOuterW - wallThick / 2));
     leftWall.castShadow = true;
     scoopGroup.add(leftWall);
 
-    const leftRimGeo = new THREE.BoxGeometry(scoopLen, 0.005, wallThick + 0.002);
-    const leftRim = new THREE.Mesh(leftRimGeo, meshRimMat);
+    const leftRimGeo = new THREE.BoxGeometry(scoopLen, 0.006, wallThick + 0.002);
+    const leftRim = new THREE.Mesh(leftRimGeo, scoopAccentMat);
     leftRim.position.set(centerX, scoopH + 0.006, -(halfOuterW - wallThick / 2));
     scoopGroup.add(leftRim);
 
-    // 3. Right Mesh Wall Prong (+Z)
-    const rightWall = new THREE.Mesh(sideWallGeo, meshMat);
+    // 3. Right Yellow Wall Prong (+Z)
+    const rightWall = new THREE.Mesh(sideWallGeo, scoopYellowMat);
     rightWall.position.set(centerX, scoopH / 2 + 0.006, (halfOuterW - wallThick / 2));
     rightWall.castShadow = true;
     scoopGroup.add(rightWall);
 
-    const rightRim = new THREE.Mesh(leftRimGeo, meshRimMat);
+    const rightRim = new THREE.Mesh(leftRimGeo, scoopAccentMat);
     rightRim.position.set(centerX, scoopH + 0.006, (halfOuterW - wallThick / 2));
     scoopGroup.add(rightRim);
 
-    // 4. Back Mesh Wall against robot front chassis
+    // 4. Back Wall against robot front chassis
     const backWallGeo = new THREE.BoxGeometry(wallThick, scoopH, outerW);
-    const backWall = new THREE.Mesh(backWallGeo, meshMat);
+    const backWall = new THREE.Mesh(backWallGeo, scoopYellowMat);
     backWall.position.set(mountX + wallThick / 2, scoopH / 2 + 0.006, 0);
     backWall.castShadow = true;
     scoopGroup.add(backWall);
 
-    // Tactile sensor plate on back mesh
+    // Tactile contact sensor plate on inner back wall
     const sensorPlateGeo = new THREE.BoxGeometry(0.004, 0.025, 0.08);
     const sensorPlateMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
     const sensorPlate = new THREE.Mesh(sensorPlateGeo, sensorPlateMat);
     sensorPlate.position.set(mountX + wallThick + 0.002, 0.035, 0);
     scoopGroup.add(sensorPlate);
+
+    // 5. Dual Blue IR Sensor Modules Mounted on Prong Tips (Tutorial Part 4 & 5)
+    const irPcbMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.3 }); // Distinctive blue PCB
+    const irLedMat = new THREE.MeshBasicMaterial({ color: 0x22c55e }); // Glowing green status LED
+    const irOpticMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.2 }); // Black optical detector
+    const irTransMat = new THREE.MeshStandardMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.8 }); // Clear transmitter
+
+    const irProngOffsets = [
+      { z: -(halfOuterW + 0.003), label: "IR_LEFT" },  // module1
+      { z: +(halfOuterW + 0.003), label: "IR_RIGHT" }, // module4
+    ];
+
+    for (const ir of irProngOffsets) {
+      const irGroup = new THREE.Group();
+
+      // Blue PCB board
+      const pcbGeo = new THREE.BoxGeometry(0.028, 0.004, 0.014);
+      const pcb = new THREE.Mesh(pcbGeo, irPcbMat);
+      irGroup.add(pcb);
+
+      // Transmitter tube (front-facing)
+      const txGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.008, 12);
+      const tx = new THREE.Mesh(txGeo, irTransMat);
+      tx.rotation.z = Math.PI / 2;
+      tx.position.set(0.014, 0, -0.0035);
+      irGroup.add(tx);
+
+      // Receiver photodiode (front-facing)
+      const rx = new THREE.Mesh(txGeo, irOpticMat);
+      rx.rotation.z = Math.PI / 2;
+      rx.position.set(0.014, 0, 0.0035);
+      irGroup.add(rx);
+
+      // Power / Signal green LED
+      const ledG = new THREE.BoxGeometry(0.003, 0.002, 0.003);
+      const ledM = new THREE.Mesh(ledG, irLedMat);
+      ledM.position.set(-0.006, 0.003, 0);
+      irGroup.add(ledM);
+
+      // Potentiometer trimmer (blue cube with silver screw)
+      const potGeo = new THREE.BoxGeometry(0.005, 0.004, 0.005);
+      const potMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, metalness: 0.5 });
+      const pot = new THREE.Mesh(potGeo, potMat);
+      pot.position.set(0.002, 0.004, 0);
+      irGroup.add(pot);
+
+      irGroup.position.set(mountX + scoopLen - 0.016, 0.020, ir.z);
+      scoopGroup.add(irGroup);
+    }
 
     this.robotGroup.add(scoopGroup);
   }
@@ -497,10 +647,10 @@ class Viewport3D {
     geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
     const mat = new THREE.LineBasicMaterial({
-      color: 0x38bdf8,
+      color: 0x22c55e, // Fluorescent lime-green trajectory trail (matches Wefaa simulator)
       linewidth: 2,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.85,
     });
 
     this.trajectoryLine = new THREE.Line(geom, mat);
@@ -587,15 +737,15 @@ class Viewport3D {
     this.obstacleMeshes = [];
 
     const crateMat = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      roughness: 0.5,
-      metalness: 0.3,
+      color: 0xf1f5f9, // Competition modular white partition panel (Tutorial Part 1)
+      roughness: 0.35,
+      metalness: 0.15,
     });
 
     const corridorMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      roughness: 0.4,
-      metalness: 0.5,
+      color: 0xe2e8f0, // Modular white corridor partition panel
+      roughness: 0.35,
+      metalness: 0.15,
     });
 
     const obsH = 0.35; // 35 cm obstacle height

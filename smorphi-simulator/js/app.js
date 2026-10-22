@@ -434,14 +434,28 @@ class SmorphiApp {
     const dt = Math.min((currentTime - this.lastFrameTime) / 1000, 0.1);
     this.lastFrameTime = currentTime;
 
-    // FPS Meter
+    // FPS Meter & Wefaa Simulator Timers (Tutorial Part 1)
     this.frameCount++;
-    if (currentTime - this.lastFpsUpdate > 500) {
+    if (currentTime - this.lastFpsUpdate > 100) {
       this.fps = Math.round((this.frameCount * 1000) / (currentTime - this.lastFpsUpdate));
       this.frameCount = 0;
       this.lastFpsUpdate = currentTime;
       const fpsEl = document.getElementById("sim-fps");
       if (fpsEl) fpsEl.textContent = `${this.fps} FPS`;
+
+      const globalEl = document.getElementById("wefaa-globaltime");
+      if (globalEl) {
+        globalEl.textContent = new Date().toTimeString().slice(0, 8);
+      }
+    }
+
+    const runEl = document.getElementById("wefaa-runtime");
+    if (runEl) {
+      const totalMs = Math.floor(this.missionTime * 1000);
+      const mins = String(Math.floor(totalMs / 60000)).padStart(2, "0");
+      const secs = String(Math.floor((totalMs % 60000) / 1000)).padStart(2, "0");
+      const ms = String(totalMs % 1000).padStart(3, "0");
+      runEl.textContent = `${mins}:${secs}:${ms}`;
     }
 
     if (this.isSimRunning) {

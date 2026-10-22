@@ -54,8 +54,9 @@
         <div class="flex items-center space-x-2">
           <h1 class="text-sm font-bold tracking-wider text-white">SMORPHI ROBOROARZ SIMULATOR</h1>
           <span class="px-1.5 py-0.5 text-[10px] font-mono bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded">v3.0 SINGLE-BLOCK</span>
+          <span class="px-1.5 py-0.5 text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded font-semibold">WEFAA ROBOTICS</span>
         </div>
-        <p class="text-[11px] text-slate-400">Smorphi Base Unit (170×170×315 mm) &bull; 4-Mecanum Holonomic &bull; Front Cargo Mesh Scoop</p>
+        <p class="text-[11px] text-slate-400">Smorphi Base Unit (170×170×315 mm) &bull; 4-Mecanum Holonomic &bull; Competition Yellow Front Scoop &bull; Dual IR</p>
       </div>
     </div>
 
@@ -90,13 +91,21 @@
       </button>
     </div>
 
-    <!-- Right Telemetry Badges -->
-    <div class="flex items-center space-x-4">
-      <div class="flex items-center space-x-2 text-xs font-mono">
-        <span class="text-slate-400">FPS:</span>
-        <span id="sim-fps" class="text-cyan-400 font-bold">60 FPS</span>
+    <!-- Right Telemetry Badges & Wefaa Clocks (Tutorial Part 1) -->
+    <div class="flex items-center space-x-3 text-xs font-mono">
+      <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-800/90 border border-slate-700/80">
+        <span class="text-slate-400">Run:</span>
+        <span id="wefaa-runtime" class="text-amber-400 font-bold">00:00:000</span>
       </div>
-      <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700/80 text-xs">
+      <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-800/90 border border-slate-700/80">
+        <span class="text-slate-400">Global:</span>
+        <span id="wefaa-globaltime" class="text-cyan-400 font-bold">00:00:00</span>
+      </div>
+      <div class="flex items-center space-x-1.5 px-2 py-1 text-slate-400">
+        <span>FPS:</span>
+        <span id="sim-fps" class="text-emerald-400 font-bold">60</span>
+      </div>
+      <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700/80">
         <span class="text-slate-400">Hits:</span>
         <span id="collision-count" class="font-mono text-red-400 font-bold">0</span>
       </div>
@@ -283,6 +292,7 @@
             <span class="text-slate-400">Template:</span>
             <select id="code-preset-select" class="bg-slate-800 text-cyan-400 font-medium text-xs rounded px-2 py-1 border border-slate-700 focus:outline-none focus:border-cyan-500">
               <option value="default_avoidance" selected>🎯 Autonomous 3-Cube Cargo Retrieval &amp; Transport</option>
+              <option value="line_follower_ir">⚡ Smorphi Official 2-IR Line Follower (Tutorial Part 4)</option>
               <option value="whiteboard_waypoints">Whiteboard Sense-Think-Act (5s Waypoints)</option>
               <option value="goal_seeker">RoboRoarZ Goal Seeker (Potential Field)</option>
               <option value="holonomic_drift">Mecanum Holonomic Orbit (No-Turn)</option>
